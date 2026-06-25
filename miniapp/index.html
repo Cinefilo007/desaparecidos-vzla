@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Desaparecidos Venezuela 🇻🇪</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    /* ════════════════════════════════════════════════════════
+       DESIGN SYSTEM — DESAPARECIDOS VENEZUELA
+    ════════════════════════════════════════════════════════ */
+    :root {
+      --gold:       #F5C842;
+      --gold-dim:   #C9A528;
+      --red:        #CF142B;
+      --red-dim:    #9B0F20;
+      --green:      #22C55E;
+      --green-dim:  #15803D;
+      --blue:       #003DA5;
+
+      --bg:         #08080F;
+      --surface:    #111119;
+      --surface-2:  #1A1A26;
+      --surface-3:  #22222F;
+      --border:     rgba(255,255,255,0.07);
+      --border-hot: rgba(245,200,66,0.35);
+
+      --text:       #F0F0FA;
+      --text-2:     #9090B0;
+      --text-3:     #5A5A78;
+
+      --r-card:   16px;
+      --r-btn:    12px;
+      --r-input:  10px;
+      --r-badge:  20px;
+
+      --nav-h:    64px;
+      --safe-b:   env(safe-area-inset-bottom, 0px);
+
+      --ease:     cubic-bezier(.25,.8,.25,1);
+      --spring:   cubic-bezier(.34,1.56,.64,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Scrollable container ── */
+    #app {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .view {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+      scroll-behavior: smooth;
+    }
+    .view::-webkit-scrollbar { display: none; }
+
+    /* ════ HEADER ════ */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: linear-gradient(180deg, var(--bg) 85%, transparent);
+      padding: 16px 16px 8px;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .brand-flag {
+      display: flex;
+      flex-direction: column;
+      width: 22px;
+      height: 16px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .brand-flag span { flex: 1; }
+    .brand-flag span:nth-child(1) { background: var(--gold); }
+    .brand-flag span:nth-child(2) { background: var(--blue); }
+    .brand-flag span:nth-child(3) { background: var(--red); }
+
+    .pulse-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--red);
+      background: rgba(207,20,43,.12);
+      border: 1px solid rgba(207,20,43,.25);
+      border-radius: 20px;
+      padding: 4px 10px;
+    }
+    .pulse-dot {
+      width: 6px; height: 6px;
+      background: var(--red);
+      border-radius: 50%;
+      animation: pulse 1.4s ease infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(.7); }
+    }
+
+    /* ════ STATS STRIP ════ */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 8px;
+      padding: 0 16px 16px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-card);
+      padding: 14px 10px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+    }
+    .stat-card.neutral::before { background: var(--text-3); }
+    .stat-card.danger::before  { background: var(--red); }
+    .stat-card.success::before { background: var(--green); }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-card.neutral .stat-value { color: var(--text); }
+    .stat-card.danger  .stat-value { color: var(--red); }
+    .stat-card.success .stat-value { color: var(--green); }
+    .stat-label { font-size: 10px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+
+    /* ════ SEARCH BAR ════ */
+    .search-wrap {
+      padding: 0 16px 16px;
+      position: relative;
+    }
+    .search-icon {
+      position: absolute;
+      left: 28px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-3);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-input);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 12px 16px 12px 44px;
+      outline: none;
+      transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+    }
+    .search-input::placeholder { color: var(--text-3); }
+    .search-input:focus {
+      border-color: var(--gold-dim);
+      box-shadow: 0 0 0 3px rgba(245,200,66,.1);
+    }
+
+    /* ════ SECTION TITLE ════ */
+    .section-title {
+      padding: 0 16px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    /* ════ CARD DE PERSONA ════ */
+    .persona-list { display: flex; flex-direction: column; gap: 10px; padding: 0 16px; }
+
+    .persona-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-card);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: border-color .2s var(--ease), transform .15s var(--spring), box-shadow .2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .persona-card:hover, .persona-card:active {
+      border-color: var(--border-hot);
+      transform: scale(.99);
+      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+    }
+    .persona-foto {
+      width: 54px; height: 54px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface-3);
+      flex-shrink: 0;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .persona-info { flex: 1; min-width: 0; }
+    .persona-nombre {
+      font-size: 14px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+    .persona-meta { font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: var(--r-badge);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .badge.danger  { background: rgba(207,20,43,.15); color: var(--red); border: 1px solid rgba(207,20,43,.3); }
+    .badge.success { background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.25); }
+    .badge.warning { background: rgba(245,200,66,.12); color: var(--gold);  border: 1px solid rgba(245,200,66,.25); }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    /* ════ BTN PRINCIPAL ════ */
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: var(--gold);
+      color: #0A0A00;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 800;
+      border: none;
+      border-radius: var(--r-btn);
+      padding: 16px;
+      cursor: pointer;
+      transition: transform .15s var(--spring), box-shadow .2s, filter .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 6px 20px rgba(245,200,66,.35); }
+    .btn-primary:active { transform: scale(.97); }
+
+    .btn-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-btn);
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-secondary:hover { border-color: var(--border-hot); background: var(--surface-3); }
+
+    /* ════ CHIP FILTERS ════ */
+    .chips {
+      display: flex;
+      gap: 8px;
+      padding: 0 16px 16px;
+      overflow-x: auto;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-badge);
+      color: var(--text-2);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip.active {
+      background: rgba(245,200,66,.12);
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+
+    /* ════ FORMULARIO DE REGISTRO ════ */
+    .form-section { padding: 0 16px 16px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-input);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      margin-bottom: 14px;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--gold-dim);
+      box-shadow: 0 0 0 3px rgba(245,200,66,.1);
+    }
+    .form-textarea { resize: vertical; min-height: 90px; }
+    .form-select option { background: var(--surface); }
+
+    /* Upload foto */
+    .upload-box {
+      background: var(--surface-2);
+      border: 2px dashed var(--border);
+      border-radius: var(--r-card);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 32px 16px;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      margin-bottom: 14px;
+    }
+    .upload-box:hover { border-color: var(--gold-dim); background: rgba(245,200,66,.04); }
+    .upload-icon { font-size: 32px; }
+    .upload-text { font-size: 14px; font-weight: 600; color: var(--text-2); }
+    .upload-hint { font-size: 11px; color: var(--text-3); }
+
+    /* Step indicator */
+    .steps {
+      display: flex;
+      gap: 6px;
+      padding: 0 16px 20px;
+      align-items: center;
+    }
+    .step-bar {
+      flex: 1; height: 3px; border-radius: 2px;
+      background: var(--surface-3);
+      transition: background .3s;
+    }
+    .step-bar.done { background: var(--gold); }
+    .step-bar.active { background: var(--gold-dim); }
+
+    /* ════ MAPA ════ */
+    #mapa-container {
+      height: calc(100dvh - var(--nav-h) - 110px);
+      margin: 0 16px;
+      border-radius: var(--r-card);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    /* ════ DETALLE ════ */
+    .detalle-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 16px;
+      gap: 12px;
+    }
+    .detalle-foto {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--surface-2);
+      border: 3px solid var(--border-hot);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+    }
+    .detalle-nombre { font-size: 22px; font-weight: 800; text-align: center; }
+    .detalle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 0 16px 16px;
+    }
+    .detalle-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .detalle-item.full { grid-column: 1 / -1; }
+    .detalle-item-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+    .detalle-item-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    /* ════ BOTTOM NAV ════ */
+    nav {
+      height: calc(var(--nav-h) + var(--safe-b));
+      padding-bottom: var(--safe-b);
+      background: rgba(8,8,15,.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px 4px;
+      color: var(--text-3);
+      transition: color .2s var(--ease), transform .15s var(--spring);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn.active { color: var(--gold); }
+    .nav-btn:active { transform: scale(.88); }
+    .nav-icon { font-size: 22px; line-height: 1; }
+    .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+    /* ════ TOAST ════ */
+    .toast {
+      position: fixed;
+      bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity .25s, transform .25s var(--spring);
+      white-space: nowrap;
+      box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ════ EMPTY STATE ════ */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 60px 32px;
+      text-align: center;
+    }
+    .empty-icon { font-size: 48px; opacity: .4; }
+    .empty-title { font-size: 16px; font-weight: 700; color: var(--text-2); }
+    .empty-text  { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+
+    /* ════ LOADER ════ */
+    .loader {
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px;
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ════ MODAL DETALLE ════ */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      animation: fadeIn .2s var(--ease);
+    }
+    .modal-overlay.open { display: flex; align-items: flex-end; }
+    .modal-sheet {
+      width: 100%;
+      max-height: 90dvh;
+      background: var(--surface);
+      border-radius: 24px 24px 0 0;
+      border-top: 1px solid var(--border);
+      overflow-y: auto;
+      animation: slideUp .3s var(--spring);
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    .modal-handle {
+      width: 40px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 12px auto 0;
+    }
+
+    /* ════ UTILS ════ */
+    .px-4 { padding-left: 16px; padding-right: 16px; }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-4 { margin-bottom: 16px; }
+    .mt-4 { margin-top: 16px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-flag">
+          <span></span><span></span><span></span>
+        </div>
+        Desaparecidos VZ
+      </div>
+      <div class="pulse-badge">
+        <span class="pulse-dot"></span>
+        Sismo 24 Jun
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ VISTAS ═══════════════════════════════════════════════════════ -->
+
+  <!-- ── HOME ── -->
+  <div id="view-home" class="view">
+    <!-- Stats -->
+    <div class="stats-strip">
+      <div class="stat-card neutral">
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-label">Reportadas</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-value" id="stat-buscados">—</div>
+        <div class="stat-label">Sin contacto</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-value" id="stat-localizados">—</div>
+        <div class="stat-label">Localizadas</div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="px-4 mb-4">
+      <button class="btn-primary" onclick="irA('registrar')">
+        <span>＋</span> Reportar a alguien desaparecido
+      </button>
+    </div>
+
+    <!-- Últimas novedades -->
+    <div class="section-title">⚡ Últimas novedades</div>
+    <div class="persona-list" id="lista-recientes">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ── BUSCAR ── -->
+  <div id="view-buscar" class="view hidden">
+    <div class="search-wrap">
+      <svg class="search-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input id="search-input" class="search-input" type="search"
+             placeholder="Nombre, apellido o cédula…"
+             oninput="debounceSearch(this.value)" autocomplete="off" />
+    </div>
+
+    <div class="chips" id="filter-chips">
+      <button class="chip active" data-filter="todos" onclick="setFiltro(this,'todos')">Todos</button>
+      <button class="chip" data-filter="buscado" onclick="setFiltro(this,'buscado')">
+        <span style="color:var(--red)">●</span> Sin contacto
+      </button>
+      <button class="chip" data-filter="localizado" onclick="setFiltro(this,'localizado')">
+        <span style="color:var(--green)">●</span> Localizados
+      </button>
+      <button class="chip" data-filter="vulnerable" onclick="setFiltro(this,'vulnerable')">⚠️ Vulnerables</button>
+    </div>
+
+    <div class="section-title" id="buscar-count">Cargando…</div>
+    <div class="persona-list" id="lista-buscar">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ── REGISTRAR ── -->
+  <div id="view-registrar" class="view hidden">
+    <div class="steps px-4" style="padding:16px 16px 20px">
+      <div class="step-bar active" id="step-1"></div>
+      <div class="step-bar" id="step-2"></div>
+      <div class="step-bar" id="step-3"></div>
+    </div>
+
+    <!-- Paso 1: Foto -->
+    <div id="reg-paso-1" class="form-section">
+      <div class="section-title" style="padding:0 0 12px">Paso 1 — Foto (opcional pero importante)</div>
+      <div class="upload-box" id="upload-box" onclick="document.getElementById('foto-input').click()">
+        <span class="upload-icon">📷</span>
+        <span class="upload-text">Toca para subir una foto o ficha "SE BUSCA"</span>
+        <span class="upload-hint">El sistema extrae los datos automáticamente</span>
+      </div>
+      <input type="file" id="foto-input" accept="image/*" class="hidden" onchange="procesarFoto(this)" />
+      <div id="ai-extraccion" class="hidden" style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;font-size:13px;color:var(--text-2);line-height:1.6;"></div>
+      <button class="btn-primary" onclick="irPaso(2)">Siguiente →</button>
+    </div>
+
+    <!-- Paso 2: Datos personales -->
+    <div id="reg-paso-2" class="form-section hidden">
+      <div class="section-title" style="padding:0 0 12px">Paso 2 — Datos personales</div>
+      <label class="form-label">Nombre completo *</label>
+      <input type="text" id="reg-nombre" class="form-input" placeholder="Juan García Pérez" />
+      <label class="form-label">Edad aproximada</label>
+      <input type="number" id="reg-edad" class="form-input" placeholder="43" min="0" max="120" />
+      <label class="form-label">Cédula de identidad</label>
+      <input type="text" id="reg-cedula" class="form-input" placeholder="V-12.345.678" />
+      <label class="form-label">Última ubicación conocida *</label>
+      <input type="text" id="reg-ubicacion" class="form-input" placeholder="Maturín, sector El Furrial" />
+      <label class="form-label">Descripción física</label>
+      <textarea id="reg-descripcion" class="form-textarea" placeholder="Cabello oscuro corto, usa lentes, complexión delgada, 1.70m aprox."></textarea>
+      <button class="btn-primary" onclick="irPaso(3)">Siguiente →</button>
+      <button class="btn-secondary mt-4" onclick="irPaso(1)">← Atrás</button>
+    </div>
+
+    <!-- Paso 3: Contacto -->
+    <div id="reg-paso-3" class="form-section hidden">
+      <div class="section-title" style="padding:0 0 12px">Paso 3 — Tu información de contacto</div>
+      <label class="form-label">Tu nombre</label>
+      <input type="text" id="reg-contacto-nombre" class="form-input" placeholder="María López (esposa)" />
+      <label class="form-label">Teléfono de contacto *</label>
+      <input type="tel" id="reg-telefono" class="form-input" placeholder="0416-123-4567" />
+      <label class="form-label">¿Es una persona vulnerable?</label>
+      <select id="reg-vulnerable" class="form-input form-select">
+        <option value="">No</option>
+        <option value="menor_edad">Menor de edad</option>
+        <option value="adulto_mayor">Adulto mayor (+65 años)</option>
+        <option value="embarazada">Embarazada</option>
+        <option value="condicion_medica">Condición médica grave</option>
+        <option value="discapacidad">Persona con discapacidad</option>
+      </select>
+      <label class="form-label">Información adicional</label>
+      <textarea id="reg-notas" class="form-textarea" placeholder="Señas particulares, medicamentos que necesita, etc."></textarea>
+      <button class="btn-primary" onclick="enviarRegistro()">✅ Registrar persona</button>
+      <button class="btn-secondary mt-4" onclick="irPaso(2)">← Atrás</button>
+    </div>
+  </div>
+
+  <!-- ── MAPA ── -->
+  <div id="view-mapa" class="view hidden">
+    <div class="chips" style="padding:0 16px 12px">
+      <button class="chip active" onclick="filtrarMapa('todos',this)">Todos</button>
+      <button class="chip" onclick="filtrarMapa('buscado',this)"><span style="color:var(--red)">●</span> Sin contacto</button>
+      <button class="chip" onclick="filtrarMapa('localizado',this)"><span style="color:var(--green)">●</span> Localizados</button>
+    </div>
+    <div id="mapa-container"></div>
+    <div style="padding:12px 16px;font-size:12px;color:var(--text-3)">
+      ● Rojo: sin contacto  ● Verde: localizado
+    </div>
+  </div>
+
+  <!-- ── BOTTOM NAV ── -->
+  <nav>
+    <button class="nav-btn active" id="nav-home" onclick="irA('home')">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-label">Inicio</span>
+    </button>
+    <button class="nav-btn" id="nav-buscar" onclick="irA('buscar')">
+      <span class="nav-icon">🔍</span>
+      <span class="nav-label">Buscar</span>
+    </button>
+    <button class="nav-btn" id="nav-registrar" onclick="irA('registrar')">
+      <span class="nav-icon">📝</span>
+      <span class="nav-label">Reportar</span>
+    </button>
+    <button class="nav-btn" id="nav-mapa" onclick="irA('mapa')">
+      <span class="nav-icon">🗺️</span>
+      <span class="nav-label">Mapa</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ── MODAL DETALLE ── -->
+<div class="modal-overlay" id="modal-detalle" onclick="cerrarModal(event)">
+  <div class="modal-sheet" id="modal-content">
+    <div class="modal-handle"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   MINI APP — DESAPARECIDOS VENEZUELA 🇻🇪
+   SPA completa con Telegram Web App API
+════════════════════════════════════════════════════════════ */
+
+// ── Telegram Web App init ──────────────────────────────────────
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.enableClosingConfirmation();
+  tg.setHeaderColor('#08080F');
+  tg.setBackgroundColor('#08080F');
+}
+
+// ── API Base URL ───────────────────────────────────────────────
+const API = window.location.origin + '/api';
+
+// ── Estado global ──────────────────────────────────────────────
+const state = {
+  vistaActual: 'home',
+  personas: [],
+  filtro: 'todos',
+  mapaIniciado: false,
+  mapa: null,
+  markersLayer: null,
+  regDatos: {},
+  regPasoActual: 1,
+  searchTimer: null,
+};
+
+// ── Navegación ─────────────────────────────────────────────────
+function irA(vista) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`view-${vista}`)?.classList.remove('hidden');
+  document.getElementById(`nav-${vista}`)?.classList.add('active');
+  state.vistaActual = vista;
+  if (vista === 'buscar'    && !state.personas.length) cargarPersonas();
+  if (vista === 'home')     cargarStats();
+  if (vista === 'mapa')     iniciarMapa();
+  if (vista === 'registrar') resetRegistro();
+}
+
+// ── Stats (Home) ───────────────────────────────────────────────
+async function cargarStats() {
+  try {
+    const r = await fetch(`${API}/stats`);
+    const d = await r.json();
+    animarNumero('stat-total',      d.total      || 0);
+    animarNumero('stat-buscados',   d.buscados   || 0);
+    animarNumero('stat-localizados',d.localizados|| 0);
+    cargarRecientes();
+  } catch(e) {
+    console.warn('Sin conexión al API, mostrando demo', e);
+    mostrarDemoStats();
+  }
+}
+
+function mostrarDemoStats() {
+  animarNumero('stat-total',      247);
+  animarNumero('stat-buscados',   189);
+  animarNumero('stat-localizados', 58);
+  renderPersonas(getDemoPersonas(), 'lista-recientes');
+}
+
+function animarNumero(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let current = 0;
+  const step = Math.max(1, Math.floor(target / 30));
+  const timer = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = current;
+    if (current >= target) clearInterval(timer);
+  }, 40);
+}
+
+async function cargarRecientes() {
+  try {
+    const r = await fetch(`${API}/personas?limit=5`);
+    const d = await r.json();
+    renderPersonas(d.personas || getDemoPersonas(), 'lista-recientes');
+  } catch {
+    renderPersonas(getDemoPersonas(), 'lista-recientes');
+  }
+}
+
+// ── Personas (Buscar) ──────────────────────────────────────────
+async function cargarPersonas(query = '') {
+  const lista = document.getElementById('lista-buscar');
+  lista.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const params = new URLSearchParams({ limit: 50 });
+    if (query)              params.set('q', query);
+    if (state.filtro !== 'todos') params.set('estado', state.filtro);
+    const r = await fetch(`${API}/personas?${params}`);
+    const d = await r.json();
+    state.personas = d.personas || getDemoPersonas();
+  } catch {
+    state.personas = getDemoPersonas();
+  }
+  renderPersonas(state.personas, 'lista-buscar');
+  document.getElementById('buscar-count').textContent =
+    `${state.personas.length} persona${state.personas.length !== 1 ? 's' : ''} registrada${state.personas.length !== 1 ? 's' : ''}`;
+}
+
+function renderPersonas(personas, containerId) {
+  const container = document.getElementById(containerId);
+  if (!personas.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">Sin resultados</div>
+        <div class="empty-text">Prueba con otro nombre o registra a la persona que buscas</div>
+      </div>`;
+    return;
+  }
+  container.innerHTML = personas.map(p => cardPersona(p)).join('');
+}
+
+function cardPersona(p) {
+  const badgeClass = p.estado === 'localizado' ? 'success' : p.estado === 'posible' ? 'warning' : 'danger';
+  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : p.estado === 'posible' ? '🟡 Posible avistamiento' : '🔴 Sin contacto';
+  const foto = p.foto_url
+    ? `<img class="persona-foto" src="${p.foto_url}" alt="${p.nombre}" loading="lazy" />`
+    : `<div class="persona-foto">👤</div>`;
+  return `
+    <div class="persona-card" onclick="verDetalle(${p.id || 0})">
+      ${foto}
+      <div class="persona-info">
+        <div class="persona-nombre">${p.nombre}${p.apellidos ? ' ' + p.apellidos : ''}${p.es_vulnerable ? ' ⚠️' : ''}</div>
+        <div class="persona-meta">${p.edad ? p.edad + ' años' : '?'}  ·  ${p.ultima_ubicacion || 'Ubicación desconocida'}</div>
+        <span class="badge ${badgeClass}"><span class="badge-dot"></span>${badgeText}</span>
+      </div>
+    </div>`;
+}
+
+// ── Búsqueda con debounce ──────────────────────────────────────
+function debounceSearch(val) {
+  clearTimeout(state.searchTimer);
+  state.searchTimer = setTimeout(() => cargarPersonas(val), 350);
+}
+
+function setFiltro(el, filtro) {
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  state.filtro = filtro;
+  cargarPersonas(document.getElementById('search-input')?.value || '');
+}
+
+// ── Modal de detalle ───────────────────────────────────────────
+async function verDetalle(id) {
+  let p;
+  try {
+    const r = await fetch(`${API}/personas/${id}`);
+    p = await r.json();
+  } catch {
+    p = (state.personas.find(x => x.id === id)) || getDemoPersonas()[0];
+  }
+  const badgeClass = p.estado === 'localizado' ? 'success' : 'danger';
+  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : '🔴 Sin contacto';
+  const foto = p.foto_url
+    ? `<img class="detalle-foto" src="${p.foto_url}" alt="${p.nombre}" />`
+    : `<div class="detalle-foto">👤</div>`;
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="detalle-hero">
+      ${foto}
+      <div class="detalle-nombre">${p.nombre}${p.apellidos ? ' ' + p.apellidos : ''}</div>
+      <span class="badge ${badgeClass}"><span class="badge-dot"></span>${badgeText}</span>
+    </div>
+    <div class="detalle-grid px-4">
+      ${p.edad ? `<div class="detalle-item"><div class="detalle-item-label">Edad</div><div class="detalle-item-value">${p.edad} años</div></div>` : ''}
+      ${p.cedula ? `<div class="detalle-item"><div class="detalle-item-label">Cédula</div><div class="detalle-item-value">V-${p.cedula}</div></div>` : ''}
+      ${p.ultima_ubicacion ? `<div class="detalle-item full"><div class="detalle-item-label">Última ubicación</div><div class="detalle-item-value">${p.ultima_ubicacion}</div></div>` : ''}
+      ${p.descripcion_fisica ? `<div class="detalle-item full"><div class="detalle-item-label">Descripción física</div><div class="detalle-item-value">${p.descripcion_fisica}</div></div>` : ''}
+      ${p.condicion_medica ? `<div class="detalle-item full" style="border-color:rgba(207,20,43,.3)"><div class="detalle-item-label" style="color:var(--red)">⚠️ Condición médica</div><div class="detalle-item-value">${p.condicion_medica}</div></div>` : ''}
+    </div>
+    <div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:10px">
+      <button class="btn-primary" onclick="marcarLocalizado(${p.id})">✅ Marcar como LOCALIZADO</button>
+      <button class="btn-secondary" onclick="compartirFicha(${p.id},'${p.nombre}')">🔗 Compartir ficha</button>
+      <button class="btn-secondary" onclick="reportarInfo(${p.id})">📣 Tengo información de esta persona</button>
+    </div>`;
+  document.getElementById('modal-detalle').classList.add('open');
+}
+
+function cerrarModal(e) {
+  if (e.target === document.getElementById('modal-detalle'))
+    document.getElementById('modal-detalle').classList.remove('open');
+}
+
+// ── Acciones de detalle ────────────────────────────────────────
+async function marcarLocalizado(id) {
+  try {
+    await fetch(`${API}/personas/${id}/estado`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({estado: 'localizado'})
+    });
+    showToast('✅ ¡Persona marcada como localizada!');
+    document.getElementById('modal-detalle').classList.remove('open');
+    cargarStats(); cargarPersonas();
+    if(tg) tg.HapticFeedback?.notificationOccurred('success');
+  } catch {
+    showToast('⚠️ Error al actualizar. Intenta de nuevo.');
+  }
+}
+
+function compartirFicha(id, nombre) {
+  const url = `${window.location.origin}/?persona=${id}`;
+  if (navigator.share) {
+    navigator.share({ title: `SE BUSCA: ${nombre}`, text: `Ayuda a encontrar a ${nombre}`, url });
+  } else {
+    navigator.clipboard.writeText(url);
+    showToast('🔗 Enlace copiado al portapapeles');
+  }
+}
+
+function reportarInfo(id) {
+  document.getElementById('modal-detalle').classList.remove('open');
+  if(tg) tg.sendData(JSON.stringify({accion:'tengo_info', persona_id: id}));
+  else   showToast('ℹ️ Usa el bot de Telegram para enviar información');
+}
+
+// ── Registro ───────────────────────────────────────────────────
+function resetRegistro() {
+  state.regDatos = {};
+  state.regPasoActual = 1;
+  irPaso(1);
+  ['reg-nombre','reg-edad','reg-cedula','reg-ubicacion','reg-descripcion',
+   'reg-contacto-nombre','reg-telefono','reg-notas'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+  document.getElementById('ai-extraccion').classList.add('hidden');
+  document.getElementById('upload-box').innerHTML = `
+    <span class="upload-icon">📷</span>
+    <span class="upload-text">Toca para subir una foto o ficha "SE BUSCA"</span>
+    <span class="upload-hint">El sistema extrae los datos automáticamente</span>`;
+}
+
+function irPaso(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById(`reg-paso-${i}`)?.classList.toggle('hidden', i !== n);
+    const bar = document.getElementById(`step-${i}`);
+    if(bar) {
+      bar.classList.toggle('done',   i < n);
+      bar.classList.toggle('active', i === n);
+      bar.style.background = i < n ? 'var(--gold)' : i === n ? 'var(--gold-dim)' : '';
+    }
+  });
+  state.regPasoActual = n;
+}
+
+async function procesarFoto(input) {
+  if (!input.files[0]) return;
+  const box = document.getElementById('upload-box');
+  box.innerHTML = '<span class="upload-icon">⏳</span><span class="upload-text">Analizando con IA…</span>';
+
+  // Mostrar preview
+  const url = URL.createObjectURL(input.files[0]);
+  box.innerHTML = `<img src="${url}" style="width:100%;height:160px;object-fit:cover;border-radius:10px" />
+    <span class="upload-text" style="font-size:12px;color:var(--green)">✅ Foto lista</span>`;
+
+  state.regDatos.foto = input.files[0];
+
+  // Enviar al backend para extracción
+  const fd = new FormData();
+  fd.append('imagen', input.files[0]);
+  try {
+    const r = await fetch(`${API}/analizar-imagen`, {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.nombre)      document.getElementById('reg-nombre').value     = (d.nombre + ' ' + (d.apellidos||'')).trim();
+    if (d.edad)        document.getElementById('reg-edad').value        = d.edad;
+    if (d.cedula)      document.getElementById('reg-cedula').value      = 'V-' + d.cedula;
+    if (d.ultima_ubicacion) document.getElementById('reg-ubicacion').value = d.ultima_ubicacion;
+    if (d.contacto_telefono) document.getElementById('reg-telefono').value = d.contacto_telefono;
+    if (d.descripcion_fisica) document.getElementById('reg-descripcion').value = d.descripcion_fisica;
+    const info = document.getElementById('ai-extraccion');
+    info.classList.remove('hidden');
+    info.innerHTML = `🤖 <strong>IA extrajo datos automáticamente</strong> (confianza: ${Math.round((d.confianza||0)*100)}%)<br>Revisa y corrige si es necesario.`;
+    showToast('✨ ¡Datos extraídos automáticamente!');
+    if(tg) tg.HapticFeedback?.impactOccurred('medium');
+  } catch {
+    showToast('📝 Llena los datos manualmente');
+  }
+}
+
+async function enviarRegistro() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const tel    = document.getElementById('reg-telefono').value.trim();
+  if (!nombre) { showToast('⚠️ El nombre es obligatorio'); return; }
+  if (!tel)    { showToast('⚠️ El teléfono de contacto es obligatorio'); return; }
+
+  const fd = new FormData();
+  if (state.regDatos.foto) fd.append('foto', state.regDatos.foto);
+  const datos = {
+    nombre: nombre.split(' ')[0],
+    apellidos: nombre.split(' ').slice(1).join(' ') || null,
+    edad: parseInt(document.getElementById('reg-edad').value) || null,
+    cedula: document.getElementById('reg-cedula').value.replace(/\D/g,'') || null,
+    ultima_ubicacion: document.getElementById('reg-ubicacion').value.trim() || null,
+    descripcion_fisica: document.getElementById('reg-descripcion').value.trim() || null,
+    contacto_nombre: document.getElementById('reg-contacto-nombre').value.trim() || null,
+    contacto_telefono: tel,
+    razon_vulnerabilidad: document.getElementById('reg-vulnerable').value || null,
+    es_vulnerable: !!document.getElementById('reg-vulnerable').value,
+    fuente_registro: 'miniapp',
+  };
+  fd.append('datos', JSON.stringify(datos));
+
+  try {
+    const r = await fetch(`${API}/personas`, {method:'POST', body:fd});
+    const d = await r.json();
+    showToast(`✅ ¡${nombre} registrado/a! ID #VZ-${String(d.id||0).padStart(4,'0')}`);
+    if(tg) {
+      tg.HapticFeedback?.notificationOccurred('success');
+      setTimeout(() => tg.close(), 2000);
+    } else {
+      setTimeout(() => irA('home'), 1500);
+    }
+  } catch {
+    showToast('⚠️ Error al registrar. Intenta de nuevo.');
+  }
+}
+
+// ── Mapa ───────────────────────────────────────────────────────
+function iniciarMapa() {
+  if (state.mapaIniciado) return;
+  state.mapaIniciado = true;
+  const mapa = L.map('mapa-container', {zoomControl:true}).setView([8.0, -66.0], 6);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '©CartoDB ©OpenStreetMap',
+    subdomains: 'abcd', maxZoom: 19
+  }).addTo(mapa);
+  state.mapa = mapa;
+  state.markersLayer = L.layerGroup().addTo(mapa);
+  cargarPuntosMapa();
+}
+
+async function cargarPuntosMapa() {
+  let puntos;
+  try {
+    const r = await fetch(`${API}/mapa`);
+    puntos = await r.json();
+  } catch {
+    puntos = getDemoPuntosMapa();
+  }
+  state.markersLayer?.clearLayers();
+  puntos.forEach(p => {
+    if (!p.lat || !p.lng) return;
+    const color = p.estado === 'localizado' ? '#22C55E' : '#CF142B';
+    const marker = L.circleMarker([p.lat, p.lng], {
+      color, fillColor: color, fillOpacity:.8, radius:8, weight:2
+    });
+    marker.bindPopup(`<b>${p.nombre}</b><br>${p.ultima_ubicacion || ''}`);
+    state.markersLayer?.addLayer(marker);
+  });
+}
+
+function filtrarMapa(filtro, el) {
+  document.querySelectorAll('#view-mapa .chip').forEach(c => c.classList.remove('active'));
+  el?.classList.add('active');
+  cargarPuntosMapa();
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+function showToast(msg, dur = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ── Demo data ──────────────────────────────────────────────────
+function getDemoPersonas() {
+  return [
+    {id:1,nombre:'Juan Carlos',apellidos:'García Pérez',edad:43,ultima_ubicacion:'Maturín, Monagas',estado:'buscado',es_vulnerable:false},
+    {id:2,nombre:'María Elena',apellidos:'López Rojas',edad:67,ultima_ubicacion:'Cumaná, Sucre',estado:'buscado',es_vulnerable:true},
+    {id:3,nombre:'Andreína',apellidos:'Rodríguez Pérez',edad:28,ultima_ubicacion:'Barcelona, Anzoátegui',estado:'buscado',es_vulnerable:true},
+    {id:4,nombre:'Pedro',apellidos:'Rivas Salazar',edad:71,ultima_ubicacion:'Maturín, Monagas',estado:'localizado',es_vulnerable:true},
+    {id:5,nombre:'Rosa',apellidos:'Martínez de Suárez',edad:55,ultima_ubicacion:'Caracas, Distrito Capital',estado:'buscado',es_vulnerable:false},
+  ];
+}
+function getDemoPuntosMapa() {
+  return [
+    {nombre:'Juan García',ultima_ubicacion:'Maturín',estado:'buscado',lat:9.75,lng:-63.18},
+    {nombre:'María López',ultima_ubicacion:'Cumaná',estado:'buscado',lat:10.46,lng:-64.17},
+    {nombre:'Pedro Rivas',ultima_ubicacion:'Maturín',estado:'localizado',lat:9.78,lng:-63.22},
+  ];
+}
+
+// ── Init ───────────────────────────────────────────────────────
+(function init() {
+  cargarStats();
+  // Navegar a persona si viene en URL
+  const params = new URLSearchParams(window.location.search);
+  const personaId = params.get('persona');
+  if (personaId) setTimeout(() => verDetalle(parseInt(personaId)), 500);
+})();
+</script>
+</body>
+</html>
