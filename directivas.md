@@ -74,3 +74,8 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Diseñado e implementado el backend de la API (`api/main.py`) con FastAPI.
   - Creación del archivo `Procfile` y `railway.toml` para Railway.
   - Creación del archivo de Directivas del Proyecto (`directivas.md`).
+- **2026-06-25 (Control de Versiones)**: Configuración e inicialización de Git.
+  - Creación del archivo `.gitignore` para proteger credenciales (`.env`) e ignorar base de datos local SQLite (`vzla_bot.db`).
+  - Inicialización del repositorio Git local (`git init`) y renombrado de la rama principal a `main`.
+  - Realizado primer commit con toda la estructura de la aplicación.
+
