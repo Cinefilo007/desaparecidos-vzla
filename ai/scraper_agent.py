@@ -111,4 +111,46 @@ Devuelve SOLO un JSON válido con el siguiente formato:
                 
         return stats
 
+    async def clasificar_y_extraer_texto(self, texto_crudo: str, fuente: str = "Desconocida") -> dict:
+        """
+        Analiza un texto crudo de redes sociales o noticias.
+        Clasifica y extrae entidades compatibles con PFIF.
+        """
+        prompt = f"""
+        Eres un agente clasificador para un sistema de búsqueda de personas desaparecidas (basado en Google PFIF).
+        Analiza este texto extraído de la fuente: {fuente}
+        Texto: "{texto_crudo}"
+        
+        PASO 1: Clasifica el texto en UNA de estas categorías:
+        - "Reporte de Desaparecido"
+        - "Confirmación de Estado" (localizado, herido, fallecido, etc.)
+        - "Noticia General" (habla de un sismo, estadísticas, política, sin mencionar personas específicas o de interés directo)
+        - "Spam/Información Falsa"
+        
+        PASO 2: Si es Reporte o Confirmación, extrae los datos de la(s) persona(s).
+        
+        Devuelve SOLO un JSON válido:
+        {{
+            "categoria": "...",
+            "es_relevante": true/false,
+            "personas": [
+                {{
+                    "nombre_completo": "...",
+                    "cedula": "...",
+                    "edad": 0,
+                    "estado_actual": "...",
+                    "ultima_ubicacion": "...",
+                    "detalles": "..."
+                }}
+            ]
+        }}
+        """
+        try:
+            response = await self.model.generate_content_async(prompt)
+            t = response.text.replace("```json", "").replace("```", "").strip()
+            return json.loads(t)
+        except Exception as e:
+            logger.error(f"[ScraperAgent] Error clasificando texto: {e}")
+            return {"categoria": "Error", "es_relevante": False, "personas": []}
+
 scraper_agent = ScraperAgent()

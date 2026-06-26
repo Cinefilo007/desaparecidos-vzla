@@ -174,10 +174,12 @@ class Worker:
                 logger.warning(f"[Scraper] Error {response.status_code} al descargar feed Telegram {url}")
                 return
 
-            # Extraer los posts del HTML de telegram
+            # Extraer los posts del HTML de telegram con BeautifulSoup
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.text, 'html.parser')
             posts = []
-            for match in re.finditer(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', response.text, re.DOTALL):
-                posts.append(self._limpiar_html(match.group(1)))
+            for msg in soup.find_all('div', class_='tgme_widget_message_text'):
+                posts.append(msg.get_text(separator=' ', strip=True))
 
             if not posts:
                 logger.warning(f"[Scraper] No se encontraron publicaciones públicas en el feed de {canal}")
@@ -271,87 +273,53 @@ class Worker:
                 resultado["texto"], resultado["url"], resultado["plataforma"]
             )
 
-    # ── Análisis y contraste con Gemini 2.5 Flash ─────────────────────
+    # ── Análisis y contraste con Gemini y Búsqueda Difusa (Levenshtein) ──
 
     async def _contrastar_texto_con_desaparecidos(self, texto_fuente: str, url_fuente: str, plataforma: str):
-        # 1. Obtener personas desaparecidas activas de la base de datos
-        personas_desaparecidas = await listar_personas(estado=EstadoPersona.BUSCADO, limit=100)
-        if not personas_desaparecidas:
-            logger.info("[Worker] No hay personas en estado 'buscado' para contrastar.")
-            return
-
-        # 2. Construir lista compacta de candidatos para Gemini
-        candidatos = []
-        for p in personas_desaparecidas:
-            candidatos.append({
-                "id": p.id,
-                "nombre_completo": p.nombre_completo(),
-                "edad": p.edad or "Desconocida",
-                "cedula": p.cedula or "No especificada",
-                "zona": p.zona or "Desconocida",
-                "descripcion": p.descripcion_fisica or "No especificada"
-            })
-
-        # Dividir si hay demasiados (limitar a 20 candidatos por petición para optimizar tokens y precisión)
-        chunk_size = 20
-        for i in range(0, len(candidatos), chunk_size):
-            chunk = candidatos[i:i + chunk_size]
-            await self._procesar_chunk_contraste(chunk, texto_fuente, url_fuente, plataforma)
-
-    async def _procesar_chunk_contraste(self, candidatos: List[Dict[str, Any]], texto_fuente: str, url_fuente: str, plataforma: str):
-        candidatos_json = json.dumps(candidatos, indent=2, ensure_ascii=False)
+        from ai.scraper_agent import scraper_agent
+        from database.crud import buscar_similares_difuso
         
-        prompt = f"""
-Actúas como un Analista de Búsqueda y Rescate para Venezuela.
-Tu tarea es contrastar un texto extraído de internet/redes sociales con una lista de personas desaparecidas para identificar coincidencias.
-
-Lista de Personas Desaparecidas:
-{candidatos_json}
-
-Texto extraído de internet/redes sociales:
-\"\"\"
-{texto_fuente[:8000]}
-\"\"\"
-
-Determina minuciosamente si en el texto se reporta o menciona el paradero, avistamiento, estado o información de alguna de las personas desaparecidas de la lista.
-Usa coincidencia fonética y variaciones comunes de nombres en Venezuela (ej. "Ramon" por "Ramón", o "Ma. Gomez" por "María Gómez").
-
-Responde ÚNICAMENTE con un objeto JSON en el siguiente formato válido:
-{{
-  "coincidencia_detectada": true/false,
-  "coincidencias": [
-    {{
-      "persona_id": número_entero_id,
-      "texto_coincidencia": "Fragmento exacto o resumido de la noticia/post que habla de ella",
-      "score_confianza": número decimal de 0.0 a 1.0 (probabilidad de que sea la misma persona),
-      "ubicacion_mencionada": "Lugar mencionado donde se vio o null",
-      "detalles_estado": "Detalles adicionales de su paradero o estado físico"
-    }}
-  ]
-}}
-"""
-        try:
-            response = await self.gemini_model.generate_content_async(prompt)
-            # Limpiar posibles bloques markdown en la respuesta
-            texto_resp = response.text
-            match = re.search(r"\{.*\}", texto_resp, re.DOTALL)
-            if not match:
-                return
+        # 1. Clasificación y Extracción (PFIF)
+        analisis = await scraper_agent.clasificar_y_extraer_texto(texto_fuente[:8000], url_fuente)
+        cat = analisis.get("categoria", "")
+        
+        if not analisis.get("es_relevante") or cat in ["Noticia General", "Spam/Información Falsa", "Error"]:
+            logger.debug(f"[Worker] Texto ignorado por IA: {cat}")
+            return
             
-            resultado = json.loads(match.group())
-            if not resultado.get("coincidencia_detectada"):
-                return
-
-            for coincidencia in resultado.get("coincidencias", []):
-                persona_id = coincidencia.get("persona_id")
-                score = float(coincidencia.get("score_confianza", 0.0))
+        personas_extraidas = analisis.get("personas", [])
+        if not personas_extraidas:
+            logger.debug("[Worker] Texto relevante pero sin personas identificadas.")
+            return
+            
+        logger.info(f"[Worker] IA extrajo {len(personas_extraidas)} posibles personas. Deduplicando (Levenshtein)...")
+        
+        for p_ext in personas_extraidas:
+            nombre_str = p_ext.get("nombre_completo", "")
+            cedula_str = p_ext.get("cedula", "")
+            if len(nombre_str) < 3:
+                continue
                 
-                if score >= 0.65:
-                    logger.info(f"[Worker] Match detectado con score {score:.2f} para Persona #{persona_id} en {url_fuente}")
-                    await self._registrar_avistamiento_y_alertar(persona_id, coincidencia, url_fuente, plataforma)
-
-        except Exception as e:
-            logger.error(f"[Worker] Error analizando contraste con Gemini: {e}")
+            # 2. Búsqueda y Deduplicación Difusa
+            similares = await buscar_similares_difuso(nombre_str, cedula_str, umbral_similitud=75.0)
+            
+            if similares:
+                # Si hay matches, tomar el mejor
+                mejor_match = similares[0]
+                logger.info(f"[Worker] Match detectado (Levenshtein) para Persona #{mejor_match.id} ({mejor_match.nombre_completo()}) en {url_fuente}")
+                
+                detalles = f"[{cat}] Estado reportado: {p_ext.get('estado_actual', '?')} - Ubicación: {p_ext.get('ultima_ubicacion', '?')} - Detalles extra: {p_ext.get('detalles', '')}"
+                
+                coincidencia = {
+                    "texto_coincidencia": f"Detectado automáticamente por IA desde: {cat}",
+                    "detalles_estado": detalles,
+                    "score_confianza": 0.85,
+                    "ubicacion_mencionada": p_ext.get("ultima_ubicacion")
+                }
+                
+                await self._registrar_avistamiento_y_alertar(mejor_match.id, coincidencia, url_fuente, plataforma)
+            else:
+                logger.info(f"[Worker] Persona extraída ({nombre_str}) no coincide con ninguna en la base de datos.")
 
     # ── Registro de Avistamientos y Envío de Alertas ───────────────────
 

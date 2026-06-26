@@ -403,9 +403,40 @@ async def registrar_ingreso(body: dict):
     }
 
 
+# ── Scraper ────────────────────────────────────────────────────────────
+
+@app.post("/api/scraper/forzar")
+async def forzar_scraper():
+    import redis.asyncio as aioredis
+    import json
+    try:
+        redis_conn = await aioredis.from_url(settings.redis_url)
+        # Lanzamos tareas de scraping
+        await redis_conn.lpush("queue:p2", json.dumps({"tipo": "ejecutar_scraper_agentico", "id": str(uuid.uuid4())}))
+        await redis_conn.lpush("queue:p2", json.dumps({"tipo": "scrape_telegram", "datos": {"canal": "https://t.me/s/ejemplo_noticias_vzla"}, "id": str(uuid.uuid4())}))
+        await redis_conn.close()
+        return {"ok": True, "msg": "Scraping encolado correctamente"}
+    except Exception as e:
+        logger.error(f"Error forzando scraper: {e}")
+        raise HTTPException(500, "Error encolando tarea")
+
+
 # ── Helpers ────────────────────────────────────────────────────────────
 
 def _persona_to_dict(p) -> dict:
+    import sqlalchemy
+    avistamientos = []
+    if "avistamientos" not in sqlalchemy.inspect(p).unloaded:
+        for a in p.avistamientos:
+            avistamientos.append({
+                "id": a.id,
+                "fecha": a.fecha.isoformat(),
+                "fuente": a.fuente,
+                "detalles": a.detalles,
+                "es_oficial": a.es_oficial,
+                "url_origen": a.url_origen
+            })
+
     return {
         "id":               p.id,
         "nombre":           p.nombre,
@@ -424,4 +455,5 @@ def _persona_to_dict(p) -> dict:
         "lat":              p.lat,
         "lng":              p.lng,
         "creado_en":        p.creado_en.isoformat() if p.creado_en else None,
+        "avistamientos":    avistamientos
     }

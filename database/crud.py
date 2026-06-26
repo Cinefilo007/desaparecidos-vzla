@@ -166,6 +166,40 @@ async def buscar_por_nombre(texto: str, limit: int = 20) -> List[Persona]:
         )
         return list(result.scalars().all())
 
+async def buscar_similares_difuso(nombre_completo: str, cedula: Optional[str] = None, umbral_similitud: float = 75.0) -> List[Persona]:
+    """Usa RapidFuzz para encontrar coincidencias ortográficas similares o fonéticas."""
+    from rapidfuzz import fuzz
+    
+    async with db_session() as s:
+        # Si tenemos cédula, buscar primero por cédula
+        if cedula:
+            res = await s.execute(select(Persona).where(Persona.cedula == cedula))
+            match_cedula = res.scalars().first()
+            if match_cedula:
+                return [match_cedula]
+                
+        # Traer todos los nombres y sus IDs (ligero)
+        res = await s.execute(select(Persona.id, Persona.nombre, Persona.apellidos))
+        candidatos = res.all()
+        
+        matches = []
+        for c_id, c_nom, c_ape in candidatos:
+            full_name = f"{c_nom or ''} {c_ape or ''}".strip()
+            score = fuzz.token_sort_ratio(nombre_completo.lower(), full_name.lower())
+            if score >= umbral_similitud:
+                matches.append((c_id, score))
+                
+        if not matches:
+            return []
+            
+        # Ordenar por puntuación descendente y tomar los mejores
+        matches.sort(key=lambda x: x[1], reverse=True)
+        top_ids = [m[0] for m in matches[:5]]
+        
+        # Recuperar objetos Persona completos
+        res_personas = await s.execute(select(Persona).where(Persona.id.in_(top_ids)))
+        return list(res_personas.scalars().all())
+
 async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
     """Devuelve personas agrupadas por su ultima_ubicacion (hospitales/refugios)."""
     async with db_session() as s:
