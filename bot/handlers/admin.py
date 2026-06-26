@@ -125,7 +125,7 @@ async def cb_tipo_fuente_seleccionada(update: Update, ctx: ContextTypes.DEFAULT_
         f"🔗 *Paso 1: Dirección de la fuente*\n\n"
         f"{ejemplos[tipo]}",
         parse_mode="Markdown",
-        reply_markup=kb_cancelar("🔙 Cancelar y volver al menú")
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Atrás", callback_data="admin_volver")]])
     )
     return ESPERANDO_URL_FUENTE
 
@@ -143,10 +143,10 @@ async def recibir_url_fuente(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     ctx.user_data["admin_new_source_url"] = url
     
     await update.message.reply_text(
-        "🏷️ *Paso 2: Nombre de la fuente*\n\n"
-        "Escribe un nombre identificativo y descriptivo para esta fuente (ej: `Noticias El Nacional`):",
+        f"✅ ¡URL guardada!\n\n"
+        f"Ahora escribe un *nombre descriptivo* para esta fuente (ej: 'El Diario - Sucesos').",
         parse_mode="Markdown",
-        reply_markup=kb_cancelar("🔙 Cancelar y volver al menú")
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
     )
     return ESPERANDO_NOMBRE_FUENTE
 
@@ -210,17 +210,17 @@ async def cb_cargar_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     query = update.callback_query
     await query.answer()
     
-    texto = (
-        "🏥 *Carga de Ingresos Hospitalarios (Cruce automático)*\n\n"
-        "Pega la lista de pacientes ingresados, un registro por línea.\n"
-        "Usa exactamente este formato de separadores para que la IA y la BD los crucen:\n\n"
-        "`Nombre Completo - Edad - Nombre Hospital - Detalles Médicos`\n\n"
-        "*Ejemplo de texto a enviar:*\n"
-        "`Ramón Ortega - 52 - Hospital Central Maturín - Deshidratación`\n"
-        "`María Gómez - 24 - Clínica Caracas - Fractura`"
+    await query.message.edit_text(
+        "🏥 *Carga Masiva de Hospital*\n\n"
+        "Pega aquí la lista de personas ingresadas.\n\n"
+        "*Formato sugerido (una por línea):*\n"
+        "`Hospital Domingo Luciani`\n"
+        "`Juan Perez, 30 años`\n"
+        "`Maria Gomez, posible fractura`\n\n"
+        "El sistema intentará cruzar estos datos con la base de datos de desaparecidos.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
     )
-    
-    await query.message.edit_text(texto, parse_mode="Markdown", reply_markup=kb_cancelar("🔙 Volver al menú"))
     return ESPERANDO_LISTA_HOSPITAL
 
 
@@ -351,14 +351,17 @@ def get_admin_handler() -> ConversationHandler:
             ],
             ESPERANDO_URL_FUENTE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_url_fuente),
+                CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],
             ESPERANDO_NOMBRE_FUENTE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre_fuente),
+                CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],
             ESPERANDO_LISTA_HOSPITAL: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_lista_hospital),
+                CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ]
         },

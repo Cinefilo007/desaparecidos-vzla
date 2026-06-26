@@ -336,7 +336,7 @@ def _persona_to_dict(p) -> dict:
         "descripcion_fisica": p.descripcion_fisica,
         "condicion_medica": p.condicion_medica,
         "fecha_desaparicion": p.fecha_desaparicion,
-        "foto_url":         p.foto_url or (f"/{p.foto_rostro_local_path}" if p.foto_rostro_local_path else (f"/{p.foto_local_path}" if p.foto_local_path else None)),
+        "foto_url":         p.foto_url or (f"/{p.foto_rostro_local_path.replace(chr(92), '/')}" if p.foto_rostro_local_path else (f"/{p.foto_local_path.replace(chr(92), '/')}" if p.foto_local_path else None)),
         "lat":              p.lat,
         "lng":              p.lng,
         "creado_en":        p.creado_en.isoformat() if p.creado_en else None,

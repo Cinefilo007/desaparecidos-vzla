@@ -144,10 +144,46 @@ async def corregir_dato(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
     await query.message.reply_text(
         "✏️ ¿Qué dato quieres corregir? Escribe el nombre del campo "
-        "(por ejemplo: *nombre*, *edad*, *teléfono*, *ubicación*)",
+        "(por ejemplo: *nombre*, *edad*, *teléfono*, *ubicación*, *ropa*)",
         parse_mode="Markdown",
     )
     return CORRIGIENDO_CAMPO
+
+async def seleccionar_campo_corregir(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    """El usuario escribió el nombre del campo a corregir."""
+    campo_texto = update.message.text.strip().lower()
+    
+    mapeo = {
+        "nombre": "nombre",
+        "apellido": "apellidos",
+        "apellidos": "apellidos",
+        "edad": "edad",
+        "ubicacion": "ultima_ubicacion",
+        "ubicación": "ultima_ubicacion",
+        "zona": "zona",
+        "descripcion": "descripcion_fisica",
+        "descripción": "descripcion_fisica",
+        "ropa": "descripcion_fisica",
+        "fisico": "descripcion_fisica",
+        "físico": "descripcion_fisica",
+        "condicion": "condicion_medica",
+        "condición": "condicion_medica",
+    }
+    
+    campo_real = mapeo.get(campo_texto)
+    if not campo_real:
+        for k, v in mapeo.items():
+            if k in campo_texto:
+                campo_real = v
+                break
+
+    if not campo_real:
+        await update.message.reply_text("❌ No reconocí ese campo. Intenta con: nombre, edad, ropa, ubicación...")
+        return CORRIGIENDO_CAMPO
+        
+    ctx.user_data["campo_esperando"] = campo_real
+    await update.message.reply_text(f"📝 Escribe el *nuevo valor* para la {campo_texto}:", parse_mode="Markdown")
+    return COMPLETANDO_CAMPO
 
 
 # ── Completar campos faltantes ─────────────────────────────────────────
@@ -352,7 +388,7 @@ def get_registro_handler() -> ConversationHandler:
                 CallbackQueryHandler(saltar_campo, pattern="^campo_saltar$"),
             ],
             CORRIGIENDO_CAMPO: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_respuesta_campo),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, seleccionar_campo_corregir),
             ],
         },
         fallbacks=[

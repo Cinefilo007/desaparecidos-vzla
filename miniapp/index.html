@@ -937,7 +937,7 @@ async function verDetalle(id) {
   const badgeClass = p.estado === 'localizado' ? 'success' : 'danger';
   const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : '🔴 Sin contacto';
   const foto = p.foto_url
-    ? `<img class="detalle-foto" src="${p.foto_url}" alt="${p.nombre}" />`
+    ? `<img class="detalle-foto" src="${p.foto_url}" alt="${p.nombre}" onclick="abrirImagen('${p.foto_url}')" style="cursor:zoom-in" />`
     : `<div class="detalle-foto">👤</div>`;
 
   document.getElementById('modal-body').innerHTML = `
@@ -953,11 +953,11 @@ async function verDetalle(id) {
       ${p.descripcion_fisica ? `<div class="detalle-item full"><div class="detalle-item-label">Descripción física</div><div class="detalle-item-value">${p.descripcion_fisica}</div></div>` : ''}
       ${p.condicion_medica ? `<div class="detalle-item full" style="border-color:rgba(207,20,43,.3)"><div class="detalle-item-label" style="color:var(--red)">⚠️ Condición médica</div><div class="detalle-item-value">${p.condicion_medica}</div></div>` : ''}
     </div>
-    <div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:10px">
-      <button class="btn-primary" onclick="marcarLocalizado(${p.id})">✅ Marcar como LOCALIZADO</button>
-      <button class="btn-secondary" onclick="compartirFicha(${p.id},'${p.nombre}')">🔗 Compartir ficha</button>
-      <button class="btn-secondary" onclick="reportarInfo()">📣 Tengo información de esta persona</button>
-      <button class="btn-secondary" onclick="activarAlertas()">🔔 Activar Alertas</button>
+    <div style="padding:0 16px 24px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn-primary" onclick="reportarInfo(${p.id})" style="padding:10px;font-size:13px;border-radius:10px;">📣 Tengo Info</button>
+      <button class="btn-secondary" onclick="activarAlertas(${p.id})" style="padding:10px;font-size:13px;border-radius:10px;border-color:var(--gold);color:var(--gold-dim)">🔔 Activar Alertas</button>
+      <button class="btn-secondary" onclick="marcarLocalizado(${p.id})" style="padding:10px;font-size:13px;border-radius:10px;">✅ Localizado</button>
+      <button class="btn-secondary" onclick="compartirFicha(${p.id},'${p.nombre}')" style="padding:10px;font-size:13px;border-radius:10px;">🔗 Compartir</button>
     </div>`;
   document.getElementById('modal-detalle').classList.add('open');
 }
@@ -996,8 +996,22 @@ function compartirFicha(id, nombre) {
 
 function reportarInfo(id) {
   document.getElementById('modal-detalle').classList.remove('open');
-  if(tg) tg.sendData(JSON.stringify({accion:'tengo_info', persona_id: id}));
-  else   showToast('ℹ️ Usa el bot de Telegram para enviar información');
+  if (window.Telegram?.WebApp) window.Telegram.WebApp.close();
+  window.open(`https://t.me/DesaparecidosVzla_bot?start=info_${id}`);
+}
+
+function activarAlertas(id) {
+  document.getElementById('modal-detalle').classList.remove('open');
+  if (window.Telegram?.WebApp) window.Telegram.WebApp.close();
+  window.open(`https://t.me/DesaparecidosVzla_bot?start=alertas_${id}`);
+}
+
+function abrirImagen(url) {
+  if (window.Telegram?.WebApp) {
+    window.Telegram.WebApp.openLink(window.location.origin + url);
+  } else {
+    window.open(url, '_blank');
+  }
 }
 
 // ── Registro ───────────────────────────────────────────────────
