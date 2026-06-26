@@ -176,7 +176,9 @@ async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
         
         agrupados = {}
         for p in personas:
-            ubi = p.ultima_ubicacion.strip()
+            if not p.ultima_ubicacion:
+                continue
+            ubi = p.ultima_ubicacion.strip().title()
             if not ubi:
                 continue
             if ubi not in agrupados:
@@ -198,7 +200,9 @@ async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
         ingresos = result_ing.scalars().all()
         
         for ing in ingresos:
-            ubi = ing.hospital_nombre.strip()
+            if not ing.hospital_nombre:
+                continue
+            ubi = ing.hospital_nombre.strip().title()
             if not ubi:
                 continue
             if ubi not in agrupados:

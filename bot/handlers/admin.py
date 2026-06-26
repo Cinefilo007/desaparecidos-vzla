@@ -220,27 +220,49 @@ async def cb_cargar_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     
     await query.message.edit_text(
         "🏥 *Carga Masiva de Hospital*\n\n"
-        "Por favor, escribe el *nombre del hospital o refugio* al que pertenece la lista que vas a subir:",
+        "Envía una *foto* o un *documento* (PDF, Word, Excel, CSV) con el listado de pacientes ingresados, o pega el texto directamente.\n\n"
+        "La Inteligencia Artificial extraerá automáticamente el nombre del hospital y los pacientes.",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
     )
-    return ESPERANDO_NOMBRE_HOSPITAL
+    return ESPERANDO_LISTA_HOSPITAL
 
 async def recibir_nombre_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     nombre_hospital = update.message.text.strip()
     ctx.user_data["hospital_nombre"] = nombre_hospital
     
-    await update.message.reply_text(
-        f"🏥 Hospital fijado: *{nombre_hospital}*\n\n"
-        "Ahora, pega aquí el texto o *envía una foto* de la lista de personas ingresadas.\n\n"
-        "*Formato sugerido para texto (una por línea):*\n"
-        "`Juan Perez, 30, traumatismo`\n"
-        "`Maria Gomez, 25, estable`\n\n"
-        "El sistema cruzará estos datos con los reportes de desaparecidos automáticamente.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
-    )
-    return ESPERANDO_LISTA_HOSPITAL
+    pendientes = ctx.user_data.get("ingresos_pendientes")
+    if not pendientes:
+        # Fallback si no hay pendientes, volvemos a pedir foto
+        await update.message.reply_text(
+            f"🏥 Hospital fijado: *{nombre_hospital}*\n\n"
+            "Ahora envía la foto o documento de los pacientes.", parse_mode="Markdown"
+        )
+        return ESPERANDO_LISTA_HOSPITAL
+        
+    ingresos_a_procesar = []
+    for d in pendientes:
+        if d.nombre:
+            ingresos_a_procesar.append({
+                "nombre_completo": d.nombre_completo(),
+                "edad": d.edad,
+                "hospital_nombre": nombre_hospital,
+                "detalles_ingreso": d.condicion_medica or "Ingreso clínico",
+                "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
+            })
+            
+    if ingresos_a_procesar:
+        from database.crud import registrar_ingreso_hospital
+        for ing in ingresos_a_procesar:
+            await registrar_ingreso_hospital(ing)
+        await update.message.reply_text(f"✅ ¡Se registraron {len(ingresos_a_procesar)} pacientes en {nombre_hospital}!")
+    else:
+        await update.message.reply_text("❌ No se encontraron datos válidos para procesar.")
+        
+    ctx.user_data.pop("ingresos_pendientes", None)
+    ctx.user_data.pop("hospital_nombre", None)
+    await enviar_menu_principal(update, ctx)
+    return MENU_ADMIN
 
 
 async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -249,26 +271,55 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     # Lista para almacenar los ingresos extraídos de foto o texto
     ingresos_a_procesar = []
     
-    if msg.photo:
-        await msg.reply_text("⏳ Analizando imagen de hospital con IA... (esto puede tardar unos segundos)")
-        import uuid
-        from pathlib import Path
-        foto = msg.photo[-1]
-        file = await ctx.bot.get_file(foto.file_id)
+    import uuid
+    from pathlib import Path
+    from ai.image_processor import procesador_imagenes
+    
+    if msg.photo or msg.document:
+        await msg.reply_text("⏳ Analizando archivo con IA... (esto puede tardar unos segundos)")
         FOTOS_DIR = Path("fotos_temp")
         FOTOS_DIR.mkdir(exist_ok=True)
-        ruta = FOTOS_DIR / f"hosp_{uuid.uuid4()}.jpg"
-        await file.download_to_drive(str(ruta))
         
-        from ai.image_processor import procesador_imagenes
-        lista_datos = await procesador_imagenes.extraer_datos(str(ruta))
+        lista_datos = []
+        hosp_ai = None
+        
+        if msg.photo:
+            foto = msg.photo[-1]
+            file = await ctx.bot.get_file(foto.file_id)
+            ruta = FOTOS_DIR / f"hosp_{uuid.uuid4()}.jpg"
+            await file.download_to_drive(str(ruta))
+            lista_datos, hosp_ai = await procesador_imagenes.extraer_datos(str(ruta))
+        else:
+            doc = msg.document
+            file = await ctx.bot.get_file(doc.file_id)
+            ext = Path(doc.file_name).suffix.lower() if doc.file_name else ""
+            ruta = FOTOS_DIR / f"hosp_{uuid.uuid4()}{ext}"
+            await file.download_to_drive(str(ruta))
+            
+            from ai.document_reader import extraer_texto_de_documento
+            texto_doc = extraer_texto_de_documento(str(ruta))
+            if texto_doc:
+                lista_datos, hosp_ai = await procesador_imagenes.extraer_datos_de_texto(texto_doc)
+            else:
+                lista_datos = []
         
         if not lista_datos:
-            await msg.reply_text("❌ No pude extraer datos de la imagen.")
+            await msg.reply_text("❌ No pude extraer datos del archivo.")
             await enviar_menu_principal(update, ctx)
             return MENU_ADMIN
             
-        hospital_global = ctx.user_data.get("hospital_nombre", msg.caption or "Hospital/Centro (Extraído de listado)")
+        # Si la IA no detectó un hospital en la imagen/documento y no tenemos uno guardado
+        hospital_global = hosp_ai or ctx.user_data.get("hospital_nombre") or msg.caption
+        if not hospital_global:
+            # Guardar temporalmente y pedir nombre
+            ctx.user_data["ingresos_pendientes"] = lista_datos
+            await msg.reply_text(
+                "⚠️ La Inteligencia Artificial logró extraer a los pacientes, pero **no encontró el nombre del hospital** en el archivo.\n\n"
+                "Por favor, escribe a continuación el nombre del hospital o refugio al que pertenecen:",
+                parse_mode="Markdown"
+            )
+            return ESPERANDO_NOMBRE_HOSPITAL
+            
         for d in lista_datos:
             if d.nombre:
                 ingresos_a_procesar.append({
@@ -510,7 +561,7 @@ def get_admin_handler() -> ConversationHandler:
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],
             ESPERANDO_LISTA_HOSPITAL: [
-                MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, recibir_lista_hospital),
+                MessageHandler((filters.TEXT | filters.PHOTO | filters.Document.ALL) & ~filters.COMMAND, recibir_lista_hospital),
                 CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],

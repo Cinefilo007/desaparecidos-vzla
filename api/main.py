@@ -267,7 +267,9 @@ async def analizar_imagen(imagen: UploadFile = File(...)):
         shutil.copyfileobj(imagen.file, f)
 
     try:
-        lista_datos = await procesador_imagenes.extraer_datos(str(fpath))
+        # Analizar imagen
+        from ai.image_processor import procesador_imagenes
+        lista_datos, _ = await procesador_imagenes.extraer_datos(str(fpath))
         return [d.__dict__ for d in lista_datos]
     finally:
         fpath.unlink(missing_ok=True)

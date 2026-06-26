@@ -68,8 +68,8 @@ async def recibir_foto(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     ruta = FOTOS_DIR / f"{uuid.uuid4()}.jpg"
     await file.download_to_drive(str(ruta))
 
-    # Extraer datos con Gemini Vision (ahora retorna una lista)
-    lista_datos = await procesador_imagenes.extraer_datos(str(ruta))
+    # Extraer datos
+    lista_datos, _ = await procesador_imagenes.extraer_datos(str(ruta))
 
     if not lista_datos:
         # Fallback si falla por completo

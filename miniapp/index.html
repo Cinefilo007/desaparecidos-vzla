@@ -787,8 +787,21 @@
       Listado consolidado de pacientes localizados, agrupados por ubicación sin duplicados.
     </div>
     
+    <!-- Buscador de Hospitales -->
+    <div class="search-wrap">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input id="hosp-search-input" class="search-input" type="search"
+             placeholder="Buscar hospital o paciente..."
+             oninput="state.hospSearch=this.value; state.hospPaginaVisible=1; renderHospitales();" autocomplete="off" />
+    </div>
+    
     <div id="lista-hospitales" class="px-4 pb-4">
       <div class="loader"><div class="spinner"></div></div>
+    </div>
+    <div class="px-4" style="text-align:center; padding-bottom: 24px;">
+      <button class="btn-secondary" id="btn-load-more-hosp" onclick="state.hospPaginaVisible++; renderHospitales();" style="display:none; padding:8px 16px; font-size:13px;">↓ Cargar más</button>
     </div>
   </div>
 
@@ -939,6 +952,7 @@ const API = window.location.origin + '/api';
 const state = {
   vistaActual: 'home',
   personas: [],
+  hospitalesData: [],
   filtro: 'todos',
   mapaIniciado: false,
   mapa: null,
@@ -949,7 +963,10 @@ const state = {
   personaSeleccionada: null,
   homeSearch: '',
   paginaVisible: 1,
-  pageSize: 10
+  pageSize: 10,
+  hospSearch: '',
+  hospPaginaVisible: 1,
+  hospPageSize: 10
 };
 
 // ── Navegación ─────────────────────────────────────────────────
@@ -1123,51 +1140,96 @@ function cardPersona(p) {
 async function cargarHospitales() {
   const lista = document.getElementById('lista-hospitales');
   if (!lista) return;
+  lista.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try {
     const r = await fetch(`${API}/hospitales`);
     const data = await r.json(); // dict: { "Hospital": [personas], ... }
     
-    if (Object.keys(data).length === 0) {
-      lista.innerHTML = '<div class="empty-state">No hay pacientes registrados en hospitales/refugios.</div>';
-      return;
-    }
-    
-    let html = '';
-    let idx = 0;
-    for (const [ubi, personas] of Object.entries(data)) {
-      const count = personas.length;
-      html += `
-        <div class="acc-item" id="acc-${idx}">
-          <div class="acc-header" onclick="toggleAcc(${idx})">
-            <div>
-              <span style="font-size:15px;color:var(--text);">${ubi}</span>
-              <div style="font-size:12px;color:var(--text-2);margin-top:2px;">${count} paciente${count>1?'s':''}</div>
-            </div>
-            <div class="acc-icon">▼</div>
-          </div>
-          <div class="acc-body">
-      `;
-      personas.forEach(p => {
-        const foto = p.foto_url ? `<img src="${p.foto_url}" class="acc-foto"/>` : `<div class="acc-foto">👤</div>`;
-        const cedu = p.cedula ? `V-${p.cedula}` : 'Sin cédula';
-        html += `
-            <div class="acc-list-item" onclick="verDetalle(${p.id})">
-              ${foto}
-              <div>
-                <div style="font-size:14px;font-weight:600;color:var(--text);">${p.nombre}</div>
-                <div style="font-size:12px;color:var(--text-2);">${cedu} • ${p.edad?p.edad+' años':''}</div>
-              </div>
-            </div>
-        `;
-      });
-      html += `</div></div>`;
-      idx++;
-    }
-    lista.innerHTML = html;
+    // Transformar a un array de { ubi, personas }
+    state.hospitalesData = Object.entries(data).map(([ubi, personas]) => ({ ubi, personas }));
+    renderHospitales();
   } catch (e) {
     console.error(e);
     lista.innerHTML = '<div class="empty-state">Error cargando hospitales.</div>';
   }
+}
+
+function renderHospitales() {
+  const lista = document.getElementById('lista-hospitales');
+  if (!state.hospitalesData) return;
+  
+  let data = [...state.hospitalesData];
+  
+  // Filtrado
+  if (state.hospSearch) {
+    const q = state.hospSearch.toLowerCase();
+    // Filtramos hospitales que coincidan con el nombre O que tengan pacientes que coincidan
+    data = data.filter(h => {
+      const matchHosp = h.ubi.toLowerCase().includes(q);
+      const matchPac = h.personas.some(p => 
+        (p.nombre && p.nombre.toLowerCase().includes(q)) || 
+        (p.cedula && p.cedula.toLowerCase().includes(q))
+      );
+      return matchHosp || matchPac;
+    });
+    // Adicionalmente filtramos los pacientes dentro de los hospitales que coinciden
+    data = data.map(h => {
+      const matchHosp = h.ubi.toLowerCase().includes(q);
+      if (matchHosp) return h; // Si el hospital coincide, mostramos todos sus pacientes
+      return {
+        ubi: h.ubi,
+        personas: h.personas.filter(p => 
+          (p.nombre && p.nombre.toLowerCase().includes(q)) || 
+          (p.cedula && p.cedula.toLowerCase().includes(q))
+        )
+      };
+    });
+  }
+
+  if (data.length === 0) {
+    lista.innerHTML = '<div class="empty-state">No hay pacientes registrados que coincidan con tu búsqueda.</div>';
+    document.getElementById('btn-load-more-hosp').style.display = 'none';
+    return;
+  }
+  
+  const limite = state.hospPaginaVisible * state.hospPageSize;
+  const paginatedData = data.slice(0, limite);
+  document.getElementById('btn-load-more-hosp').style.display = limite < data.length ? 'inline-block' : 'none';
+  
+  let html = '';
+  let idx = 0;
+  for (const h of paginatedData) {
+    const count = h.personas.length;
+    // Si hay búsqueda, expandimos el acordeón por defecto
+    const isOpen = state.hospSearch ? 'open' : '';
+    html += `
+      <div class="acc-item ${isOpen}" id="acc-${idx}">
+        <div class="acc-header" onclick="toggleAcc(${idx})">
+          <div>
+            <span style="font-size:15px;color:var(--text);">${h.ubi}</span>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px;">${count} paciente${count>1?'s':''}</div>
+          </div>
+          <div class="acc-icon">▼</div>
+        </div>
+        <div class="acc-body">
+    `;
+    h.personas.forEach(p => {
+      const foto = p.foto_url ? `<img src="${p.foto_url}" class="acc-foto"/>` : `<div class="acc-foto">👤</div>`;
+      const cedu = p.cedula ? `V-${p.cedula}` : 'Sin cédula';
+      html += `
+          <div class="acc-list-item" onclick="verDetalle('${p.id}')">
+            ${foto}
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--text);">${p.nombre}</div>
+              <div style="font-size:12px;color:var(--text-2);">${cedu} • ${p.edad?p.edad+' años':''}</div>
+            </div>
+          </div>
+      `;
+    });
+    html += `</div></div>`;
+    idx++;
+  }
+  lista.innerHTML = html;
 }
 
 function toggleAcc(id) {

@@ -51,6 +51,7 @@ Extrae TODA la información visible y responde ÚNICAMENTE con JSON válido:
       "contacto_nombre": "nombre de quien busca o null"
     }
   ],
+  "hospital_nombre_detectado": "nombre del hospital, refugio o centro asistencial si se menciona, o null",
   "texto_completo": "TODO el texto visible en la imagen",
   "confianza": 0.0 a 1.0,
   "notas": "cualquier información relevante adicional o null"
@@ -140,10 +141,10 @@ class ProcesadorImagenes:
     def __init__(self):
         self.model = genai.GenerativeModel(settings.gemini_model)
 
-    async def extraer_datos(self, ruta_imagen: str) -> list[DatosExtraidos]:
+    async def extraer_datos(self, ruta_imagen: str) -> tuple[list[DatosExtraidos], Optional[str]]:
         """
         Extrae todos los datos posibles de una imagen usando Gemini Vision.
-        Retorna una lista de DatosExtraidos (uno por cada persona detectada).
+        Retorna una tupla: (lista_personas, hospital_detectado).
         """
         try:
             img = Image.open(ruta_imagen)
@@ -186,15 +187,16 @@ class ProcesadorImagenes:
                 resultados.append(datos)
                 
             logger.info(f"Imagen analizada: {len(resultados)} personas detectadas. Tipo={datos_raw.get('tipo_imagen')}")
-            return resultados
+            return resultados, datos_raw.get("hospital_nombre_detectado")
 
         except Exception as e:
             logger.error(f"Error analizando imagen: {e}")
-            return []
+            return [], None
 
-    async def extraer_datos_de_texto(self, texto_bruto: str) -> list[DatosExtraidos]:
+    async def extraer_datos_de_texto(self, texto_bruto: str) -> tuple[list[DatosExtraidos], Optional[str]]:
         """
         Extrae datos estructurados desde texto en crudo (ej: extraído de un PDF, Word, o Excel).
+        Retorna una tupla: (lista_personas, hospital_detectado).
         """
         try:
             prompt_texto = f"""
@@ -239,11 +241,11 @@ class ProcesadorImagenes:
                 resultados.append(datos)
                 
             logger.info(f"Texto analizado: {len(resultados)} personas detectadas.")
-            return resultados
+            return resultados, datos_raw.get("hospital_nombre_detectado")
 
         except Exception as e:
             logger.error(f"Error analizando texto con IA: {e}")
-            return []
+            return [], None
 
     def generar_resumen_telegram(self, datos: DatosExtraidos) -> str:
         """Genera el mensaje de confirmación con los datos detectados."""
