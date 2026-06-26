@@ -4,7 +4,7 @@ database/crud.py — Operaciones CRUD asíncronas sobre la base de datos.
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select, update, func, and_, or_, text
 from sqlalchemy.orm import selectinload
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
 import hashlib
 from loguru import logger
