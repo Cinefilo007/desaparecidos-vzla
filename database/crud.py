@@ -150,6 +150,45 @@ async def buscar_por_nombre(texto: str, limit: int = 20) -> List[Persona]:
         )
         return list(result.scalars().all())
 
+async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
+    """Devuelve personas agrupadas por su ultima_ubicacion (hospitales/refugios)."""
+    async with db_session() as s:
+        # Traer a todos los que tengan ultima_ubicacion (generalmente LOCALIZADOS)
+        q = select(Persona).where(Persona.ultima_ubicacion != None, Persona.ultima_ubicacion != "")
+        result = await s.execute(q)
+        personas = result.scalars().all()
+        
+        agrupados = {}
+        for p in personas:
+            ubi = p.ultima_ubicacion.strip()
+            if not ubi:
+                continue
+            if ubi not in agrupados:
+                agrupados[ubi] = []
+            
+            agrupados[ubi].append({
+                "id": p.id,
+                "nombre": p.nombre_completo(),
+                "edad": p.edad,
+                "cedula": p.cedula,
+                "foto_url": p.foto_url(),
+                "estado": p.estado.value if p.estado else None
+            })
+            
+        # Filtrar duplicados dentro de la misma ubicación por nombre y cédula
+        for ubi, lista in agrupados.items():
+            unicos = []
+            vistos = set()
+            for p in lista:
+                # Usar cédula si la hay, si no, el nombre en minúsculas
+                clave = p["cedula"] or p["nombre"].lower()
+                if clave not in vistos:
+                    vistos.add(clave)
+                    unicos.append(p)
+            agrupados[ubi] = unicos
+            
+        return agrupados
+
 
 async def buscar_personas(filtros: dict, limite: int = 50) -> List[Persona]:
     async with db_session() as s:

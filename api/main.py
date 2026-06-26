@@ -19,7 +19,8 @@ logger.add("app.log", rotation="10 MB", retention="5 days", level="INFO")
 from config import settings
 from database.crud import (
     init_db, crear_persona, buscar_por_nombre, listar_personas,
-    get_persona, get_estadisticas, actualizar_estado, buscar_posible_duplicado
+    get_persona, get_estadisticas, actualizar_estado, buscar_posible_duplicado,
+    listar_hospitales_refugios
 )
 from database.models import EstadoPersona
 from ai.image_processor import procesador_imagenes
@@ -140,6 +141,11 @@ async def forzar_scraper():
         return {"ok": False, "msg": str(e)}
 
 # ── Personas ───────────────────────────────────────────────────────────
+
+@app.get("/api/hospitales")
+async def get_hospitales():
+    agrupados = await listar_hospitales_refugios()
+    return agrupados
 
 @app.get("/api/personas")
 async def listar(
