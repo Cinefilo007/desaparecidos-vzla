@@ -106,3 +106,10 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
 - **2026-06-25 (Corrección del Método de Envío del Bot)**: Solución de AttributeError al registrar personas.
   - Modificado `bot/handlers/registro.py` para autodetectar de forma segura si la interacción proviene de un botón (`callback_query`) o de un mensaje de texto.
   - Implementado un fallback asíncrono robusto utilizando `context.bot.send_message` si tanto `message` como `callback_query` son nulos, previniendo caídas imprevistas (`AttributeError`) al finalizar y registrar el flujo de una persona desaparecida.
+- **2026-06-25 (Scraping Dinámico, Notificaciones y Reconocimiento Facial)**: Nuevas capacidades de búsqueda avanzada y alertas.
+  - Implementado el script del Worker asíncrono en `worker/main.py` para procesar tareas de la cola de Redis de forma eficiente mediante BLPOP.
+  - Creadas las tablas `SuscripcionAlerta`, `FuenteScraping` e `IngresoHospital` en `database/models.py`.
+  - Añadido el soporte de fuentes dinámicas de base de datos en `scheduler/main.py`, permitiendo registrar URLs y perfiles de scraping en caliente.
+  - Agregadas las capacidades de recorte de rostros con Pillow y comparación facial comparativa con Gemini 2.5 Flash en `ai/image_processor.py`.
+  - Integrado el flujo de suscripción en el Bot de Telegram (`bot/handlers/busqueda.py`) con los botones dinámicos en `bot/keyboards.py`.
+  - Mejorada la lógica de sugerencia de registro para búsquedas sin resultados, guiando de inmediato al usuario al flujo de registro de desaparecidos.

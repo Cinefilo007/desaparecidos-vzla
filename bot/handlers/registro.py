@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 from ai.image_processor import procesador_imagenes, DatosExtraidos
-from database.crud import crear_persona, buscar_posible_duplicado
+from database.crud import crear_persona, buscar_posible_duplicado, suscribir_a_persona
 from database.models import EstadoPersona, Prioridad, FuenteRegistro
 from bot.keyboards import kb_confirmar_datos, kb_saltar_campo, kb_acciones_persona, kb_cancelar
 from config import settings
@@ -258,16 +258,28 @@ async def _registrar_y_finalizar(
     # Determinar prioridad
     prioridad = Prioridad.CRITICA if datos.es_vulnerable else Prioridad.MEDIA
 
+    # Recortar y guardar rostro si es visible
+    foto_path = ctx.user_data.get("foto_path")
+    foto_rostro_path = None
+    if foto_path and datos.tiene_cara_visible and datos.caja_delimitadora_rostro:
+        foto_rostro_path = procesador_imagenes.recortar_rostro(foto_path, datos.caja_delimitadora_rostro)
+
     # Crear en base de datos
     persona_dict = datos.to_persona_dict()
     persona_dict.update({
         "prioridad":        prioridad,
         "fuente_registro":  FuenteRegistro.TELEGRAM,
         "contacto_chat_id": chat_id,
-        "foto_local_path":  ctx.user_data.get("foto_path"),
+        "foto_local_path":  foto_path,
+        "foto_rostro_local_path": foto_rostro_path,
     })
 
     persona = await crear_persona(persona_dict)
+    
+    # Suscribir automáticamente al creador de la alerta para notificaciones futuras del scraper
+    if chat_id:
+        await suscribir_a_persona(persona.id, chat_id)
+        
     nombre  = persona.nombre_completo()
 
     emoji_prioridad = "🚨" if datos.es_vulnerable else "✅"

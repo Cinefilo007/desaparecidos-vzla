@@ -73,6 +73,8 @@ class Persona(Base):
     # Fotos y biometría
     foto_url         = Column(String(500), nullable=True)
     foto_local_path  = Column(String(500), nullable=True)
+    foto_rostro_local_path = Column(String(500), nullable=True)
+    foto_rostro_url        = Column(String(500), nullable=True)
     tiene_embedding  = Column(Boolean, default=False)   # Cara en FAISS
     faiss_index_id   = Column(Integer, nullable=True)   # ID en el índice FAISS
 
@@ -154,6 +156,49 @@ class Alerta(Base):
     creado_en      = Column(DateTime, default=datetime.utcnow)
 
     persona = relationship("Persona", back_populates="alertas")
+
+
+# ── Suscripciones a alertas de personas desaparecidas ──────────────────
+
+class SuscripcionAlerta(Base):
+    __tablename__ = "suscripciones_alertas"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"), nullable=False, index=True)
+    chat_id    = Column(String(50), nullable=False, index=True)
+    creado_en  = Column(DateTime, default=datetime.utcnow)
+
+    persona = relationship("Persona", backref="suscripciones")
+
+
+# ── Fuentes dinámicas de scraping ───────────────────────────────────────
+
+class FuenteScraping(Base):
+    __tablename__ = "fuentes_scraping"
+
+    id        = Column(Integer, primary_key=True, autoincrement=True)
+    nombre    = Column(String(150), nullable=False)
+    url       = Column(String(500), nullable=False, unique=True)
+    tipo      = Column(String(50), default="web")  # web | twitter_profile | telegram_channel | rss
+    activa    = Column(Boolean, default=True, index=True)
+    creado_en = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Reportes de Ingresos en Hospitales ─────────────────────────────────
+
+class IngresoHospital(Base):
+    __tablename__ = "ingresos_hospitales"
+
+    id                  = Column(Integer, primary_key=True, autoincrement=True)
+    nombre_completo     = Column(String(300), nullable=False, index=True)
+    edad                = Column(Integer, nullable=True)
+    hospital_nombre     = Column(String(200), nullable=False)
+    fecha_ingreso       = Column(String(30), nullable=True)
+    detalles_ingreso    = Column(Text, nullable=True)
+    persona_id_vinculada= Column(Integer, ForeignKey("personas.id"), nullable=True, index=True)
+    creado_en           = Column(DateTime, default=datetime.utcnow)
+
+    persona = relationship("Persona", backref="ingresos_hospitales")
 
 
 # ── Voluntarios de búsqueda colectiva ─────────────────────────────────

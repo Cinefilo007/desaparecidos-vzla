@@ -115,8 +115,17 @@ class PlanificadorAdaptativo:
     async def job_scrape_web(self):
         modo = await self.get_modo()
         logger.info(f"[web_scraper] modo={modo.value}")
-        for url in SITIOS_WEB:
-            await self.encolar("scrape_web", {"url": url}, prioridad=2)
+        try:
+            from database.crud import listar_fuentes_scraping
+            fuentes = await listar_fuentes_scraping()
+            webs = [f.url for f in fuentes if f.tipo in ("web", "rss")]
+            for url in webs:
+                await self.encolar("scrape_web", {"url": url}, prioridad=2)
+            logger.info(f"[web_scraper] {len(webs)} webs dinámicas encoladas")
+        except Exception as e:
+            logger.error(f"[web_scraper] Error encolando webs dinámicas: {e}")
+            for url in SITIOS_WEB:
+                await self.encolar("scrape_web", {"url": url}, prioridad=2)
 
     async def job_twitter(self):
         modo = await self.get_modo()
@@ -141,23 +150,39 @@ class PlanificadorAdaptativo:
         logger.info(f"[tiktok] {len(keywords)} búsquedas encoladas")
 
     async def job_telegram_channels(self):
-        canales = [
-            "@DesaparecidosVenezuela", "@SismoVzla2026",
-            "@ProteccionCivilVzla", "@BomberosVenezuela",
-        ]
-        for canal in canales:
-            await self.encolar("scrape_telegram", {"canal": canal}, prioridad=2)
-        logger.info(f"[telegram] {len(canales)} canales encolados")
+        try:
+            from database.crud import listar_fuentes_scraping
+            fuentes = await listar_fuentes_scraping()
+            canales = [f.url for f in fuentes if f.tipo == "telegram_channel"]
+            for canal in canales:
+                await self.encolar("scrape_telegram", {"canal": canal}, prioridad=2)
+            logger.info(f"[telegram] {len(canales)} canales dinámicos encolados")
+        except Exception as e:
+            logger.error(f"[telegram] Error encolando canales dinámicos: {e}")
+            canales_def = [
+                "@DesaparecidosVenezuela", "@SismoVzla2026",
+                "@ProteccionCivilVzla", "@BomberosVenezuela",
+            ]
+            for canal in canales_def:
+                await self.encolar("scrape_telegram", {"canal": canal}, prioridad=2)
 
     async def job_noticias(self):
-        urls = [
-            "https://www.elnacional.com/venezuela/",
-            "https://efectococuyo.com/",
-            "https://runrun.es/",
-        ]
-        for url in urls:
-            await self.encolar("scrape_noticias", {"url": url}, prioridad=3)
-        logger.info(f"[noticias] {len(urls)} sitios encolados")
+        try:
+            from database.crud import listar_fuentes_scraping
+            fuentes = await listar_fuentes_scraping()
+            urls = [f.url for f in fuentes if f.tipo in ("web", "rss")]
+            for url in urls:
+                await self.encolar("scrape_noticias", {"url": url}, prioridad=3)
+            logger.info(f"[noticias] {len(urls)} portales de noticias dinámicos encolados")
+        except Exception as e:
+            logger.error(f"[noticias] Error encolando noticias dinámicas: {e}")
+            urls_def = [
+                "https://www.elnacional.com/venezuela/",
+                "https://efectococuyo.com/",
+                "https://runrun.es/",
+            ]
+            for url in urls_def:
+                await self.encolar("scrape_noticias", {"url": url}, prioridad=3)
 
     async def job_live_streams(self):
         modo = await self.get_modo()

@@ -27,6 +27,7 @@ Extrae TODA la información visible y responde ÚNICAMENTE con JSON válido:
 {
   "tipo_imagen": "ficha_se_busca|captura_whatsapp|foto_con_notas|foto_sola|recorte_noticia|desconocido",
   "tiene_cara_visible": true/false,
+  "caja_delimitadora_rostro": [ymin, xmin, ymax, xmax] o null,
   "nombre": "nombre de pila o null",
   "apellidos": "apellidos completos o null",
   "cedula": "solo dígitos sin V- ni puntos, o null",
@@ -53,6 +54,7 @@ Reglas importantes:
 - Marca es_vulnerable=true si: menor de 15 años, mayor de 65, embarazada, condición médica grave
 - Para cédulas venezolanas: extrae SOLO los números (ej: "V-12.345.678" → "12345678")
 - Si la imagen es solo una foto sin texto, devuelve null en todos los campos de texto
+- Para "caja_delimitadora_rostro": si "tiene_cara_visible" es verdadero, devuelve la caja delimitadora del rostro principal como una lista de cuatro enteros [ymin, xmin, ymax, xmax] normalizados de 0 a 1000 con respecto al alto y ancho de la imagen (donde [0, 0, 1000, 1000] representa la imagen completa). Si no es visible, devuelve null.
 - El campo confianza refleja qué tan legible/completa es la información (0=ilegible, 1=perfecta)
 """
 
@@ -77,6 +79,7 @@ class DatosExtraidos:
     contacto_telefono:    Optional[str] = None
     contacto_nombre:      Optional[str] = None
     tiene_cara_visible:   bool          = False
+    caja_delimitadora_rostro: Optional[list] = None
     tipo_imagen:          str           = "desconocido"
     confianza:            float         = 0.0
     notas:                Optional[str] = None
@@ -157,6 +160,7 @@ class ProcesadorImagenes:
                 contacto_telefono=datos_raw.get("contacto_telefono"),
                 contacto_nombre=datos_raw.get("contacto_nombre"),
                 tiene_cara_visible=datos_raw.get("tiene_cara_visible", False),
+                caja_delimitadora_rostro=datos_raw.get("caja_delimitadora_rostro"),
                 tipo_imagen=datos_raw.get("tipo_imagen", "desconocido"),
                 confianza=float(datos_raw.get("confianza", 0.5)),
                 notas=datos_raw.get("notas"),
@@ -229,6 +233,113 @@ class ProcesadorImagenes:
                 except Exception:
                     pass
         return {}
+
+    def recortar_rostro(self, ruta_imagen: str, caja: list) -> Optional[str]:
+        """Recorta el rostro de una imagen según la caja delimitadora normalizada [ymin, xmin, ymax, xmax]."""
+        try:
+            if not caja or len(caja) != 4:
+                return None
+            
+            img = Image.open(ruta_imagen)
+            w, h = img.size
+            
+            # Las coordenadas de Gemini vienen normalizadas de 0 a 1000
+            # [ymin, xmin, ymax, xmax]
+            ymin, xmin, ymax, xmax = caja
+            
+            # Convertir a pixeles reales
+            left = int((xmin / 1000.0) * w)
+            top = int((ymin / 1000.0) * h)
+            right = int((xmax / 1000.0) * w)
+            bottom = int((ymax / 1000.0) * h)
+            
+            # Evitar desbordes de coordenadas
+            left = max(0, min(left, w - 1))
+            top = max(0, min(top, h - 1))
+            right = max(left + 10, min(right, w))
+            bottom = max(top + 10, min(bottom, h))
+            
+            # Recortar
+            cara = img.crop((left, top, right, bottom))
+            
+            # Guardar en la misma carpeta temp o en uploads con nombre único
+            p = Path(ruta_imagen)
+            ruta_rostro = p.parent / f"rostro_{p.stem}.jpg"
+            cara.save(ruta_rostro, "JPEG", quality=95)
+            logger.info(f"[IA] Rostro recortado y guardado en {ruta_rostro}")
+            return str(ruta_rostro)
+        except Exception as e:
+            logger.error(f"[IA] Error al recortar rostro: {e}")
+            return None
+
+    async def comparar_rostros_gemini(self, ruta_foto_busqueda: str, lista_candidatos: list) -> Optional[dict]:
+        """
+        Compara una foto de búsqueda con los rostros de una lista de candidatos usando Gemini.
+        lista_candidatos es una lista de diccionarios: [{"id": 1, "nombre": "Juan", "foto_rostro_path": "..."}]
+        Retorna el diccionario del candidato que coincide y el score de confianza, o None.
+        """
+        try:
+            from PIL import Image
+            # Filtrar solo los candidatos que tengan foto de rostro válida localmente
+            candidatos_validos = [c for c in lista_candidatos if c.get("foto_rostro_path") and Path(c["foto_rostro_path"]).exists()]
+            if not candidatos_validos:
+                logger.warning("[IA] No hay candidatos con foto de rostro válida localmente para comparar.")
+                return None
+            
+            # Abrir imagen de búsqueda
+            img_busqueda = Image.open(ruta_foto_busqueda)
+            img_busqueda = self._optimizar(img_busqueda)
+            
+            # Cargar imágenes de candidatos (limitar a top 5 por coste de tokens y API)
+            candidatos_validos = candidatos_validos[:5]
+            
+            payload = [img_busqueda]
+            
+            descripcion_candidatos = []
+            for i, cand in enumerate(candidatos_validos):
+                img_cand = Image.open(cand["foto_rostro_path"])
+                img_cand = self._optimizar(img_cand)
+                payload.append(img_cand)
+                descripcion_candidatos.append(f"Candidato #{i+1} (ID de Base de Datos: {cand['id']}): {cand['nombre']}")
+            
+            candidatos_text = "\n".join(descripcion_candidatos)
+            
+            prompt = f"""
+Te proporciono una imagen de búsqueda (la primera imagen) y una lista de fotos de rostro de {len(candidatos_validos)} candidatos registrados:
+
+{candidatos_text}
+
+Analiza minuciosamente los rasgos faciales (forma de ojos, nariz, boca, distancia interpupilar, cejas, marcas, etc.).
+Determina si la persona de la imagen de búsqueda coincide visualmente con alguno de los candidatos registrados.
+
+Responde ÚNICAMENTE con JSON válido en este formato:
+{{
+  "coincide": true/false,
+  "candidato_index_coincidente": número de 1 a {len(candidatos_validos)} (o null si no coincide con ninguno),
+  "db_id_coincidente": ID de base de datos del candidato que coincide (o null si no coincide con ninguno),
+  "score_confianza": número decimal de 0.0 a 1.0 (probabilidad de coincidencia),
+  "analisis_comparativo": "Explicación breve de los rasgos que coinciden o difieren"
+}}
+"""
+            payload.append(prompt)
+            
+            # Generar contenido
+            response = await self.model.generate_content_async(payload)
+            datos_raw = self._parsear_json(response.text)
+            
+            if datos_raw.get("coincide") and datos_raw.get("db_id_coincidente") is not None:
+                db_id = int(datos_raw.get("db_id_coincidente"))
+                cand_match = next((c for c in candidatos_validos if c["id"] == db_id), None)
+                if cand_match:
+                    return {
+                        "candidato": cand_match,
+                        "score": float(datos_raw.get("score_confianza", 0.0)),
+                        "analisis": datos_raw.get("analisis_comparativo", "")
+                    }
+            return None
+        except Exception as e:
+            logger.error(f"[IA] Error en comparación de rostros con Gemini: {e}")
+            return None
 
 
 # Instancia global

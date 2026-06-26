@@ -9,7 +9,7 @@ from datetime import datetime
 import hashlib
 
 from config import settings
-from database.models import Base, Persona, Avistamiento, Alerta, Voluntario, EstadoPersona
+from database.models import Base, Persona, Avistamiento, Alerta, Voluntario, EstadoPersona, SuscripcionAlerta, FuenteScraping, IngresoHospital
 
 # ── Motor y sesión ─────────────────────────────────────────────────────
 
@@ -212,5 +212,147 @@ async def get_voluntarios_en_zona(zona: str, limit: int = 100) -> List[Voluntari
             select(Voluntario).where(
                 and_(Voluntario.activo == True, Voluntario.zona.ilike(f"%{zona}%"))
             ).limit(limit)
+        )
+        return list(result.scalars().all())
+
+
+# ── CRUD: Suscripciones de Alertas ─────────────────────────────────────
+
+async def suscribir_a_persona(persona_id: int, chat_id: str) -> SuscripcionAlerta:
+    async with db_session() as s:
+        # Evitar duplicados
+        result = await s.execute(
+            select(SuscripcionAlerta).where(
+                and_(
+                    SuscripcionAlerta.persona_id == persona_id,
+                    SuscripcionAlerta.chat_id == chat_id
+                )
+            )
+        )
+        sub = result.scalar_one_or_none()
+        if not sub:
+            sub = SuscripcionAlerta(persona_id=persona_id, chat_id=chat_id)
+            s.add(sub)
+            await s.flush()
+        return sub
+
+
+async def desuscribir_de_persona(persona_id: int, chat_id: str) -> bool:
+    async with db_session() as s:
+        result = await s.execute(
+            select(SuscripcionAlerta).where(
+                and_(
+                    SuscripcionAlerta.persona_id == persona_id,
+                    SuscripcionAlerta.chat_id == chat_id
+                )
+            )
+        )
+        sub = result.scalar_one_or_none()
+        if sub:
+            await s.delete(sub)
+            return True
+        return False
+
+
+async def obtener_suscritos(persona_id: int) -> List[str]:
+    async with db_session() as s:
+        result = await s.execute(
+            select(SuscripcionAlerta.chat_id).where(SuscripcionAlerta.persona_id == persona_id)
+        )
+        return list(result.scalars().all())
+
+
+async def es_usuario_suscrito(persona_id: int, chat_id: str) -> bool:
+    async with db_session() as s:
+        result = await s.execute(
+            select(SuscripcionAlerta).where(
+                and_(
+                    SuscripcionAlerta.persona_id == persona_id,
+                    SuscripcionAlerta.chat_id == chat_id
+                )
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+
+# ── CRUD: Fuentes de Scraping ──────────────────────────────────────────
+
+async def crear_fuente_scraping(nombre: str, url: str, tipo: str = "web") -> FuenteScraping:
+    async with db_session() as s:
+        # Comprobar si ya existe
+        result = await s.execute(select(FuenteScraping).where(FuenteScraping.url == url))
+        fuente = result.scalar_one_or_none()
+        if not fuente:
+            fuente = FuenteScraping(nombre=nombre, url=url, tipo=tipo, activa=True)
+            s.add(fuente)
+            await s.flush()
+            await s.refresh(fuente)
+        return fuente
+
+
+async def listar_fuentes_scraping(solo_activas: bool = True) -> List[FuenteScraping]:
+    async with db_session() as s:
+        q = select(FuenteScraping)
+        if solo_activas:
+            q = q.where(FuenteScraping.activa == True)
+        result = await s.execute(q)
+        return list(result.scalars().all())
+
+
+async def desactivar_fuente_scraping(fuente_id: int) -> bool:
+    async with db_session() as s:
+        result = await s.execute(select(FuenteScraping).where(FuenteScraping.id == fuente_id))
+        fuente = result.scalar_one_or_none()
+        if fuente:
+            fuente.activa = False
+            return True
+        return False
+
+
+# ── CRUD: Ingresos Hospitales ──────────────────────────────────────────
+
+async def registrar_ingreso_hospital(datos: dict) -> IngresoHospital:
+    """Registra el ingreso de una persona en un hospital y busca coincidencias con desaparecidos."""
+    nombre_completo = datos.get("nombre_completo", "")
+    from loguru import logger
+    
+    async with db_session() as s:
+        # 1. Crear el registro del ingreso en hospital
+        ingreso = IngresoHospital(**datos)
+        s.add(ingreso)
+        await s.flush()
+        
+        # 2. Intentar buscar coincidencia automática en base de datos con personas en búsqueda activa
+        partes_nombre = nombre_completo.split()
+        if partes_nombre:
+            query_parts = []
+            for p in partes_nombre[:3]:  # primeras 3 palabras
+                query_parts.append(Persona.nombre.ilike(f"%{p}%"))
+                query_parts.append(Persona.apellidos.ilike(f"%{p}%"))
+                
+            coincidencias = await s.execute(
+                select(Persona).where(
+                    and_(
+                        Persona.estado == EstadoPersona.BUSCADO,
+                        or_(*query_parts)
+                    )
+                )
+            )
+            persona_coincidente = coincidencias.scalars().first()
+            if persona_coincidente:
+                ingreso.persona_id_vinculada = persona_coincidente.id
+                logger.info(f"[Hospital] Coincidencia detectada: Ingreso '{nombre_completo}' vinculado a Persona #{persona_coincidente.id}")
+                
+        await s.refresh(ingreso)
+        return ingreso
+
+
+async def listar_ingresos_hospitales(limite: int = 100) -> List[IngresoHospital]:
+    async with db_session() as s:
+        result = await s.execute(
+            select(IngresoHospital)
+            .options(selectinload(IngresoHospital.persona))
+            .order_by(IngresoHospital.creado_en.desc())
+            .limit(limite)
         )
         return list(result.scalars().all())

@@ -34,11 +34,16 @@ def kb_cancelar(texto: str = "❌ Cancelar") -> InlineKeyboardMarkup:
 
 # ── Acciones sobre una persona encontrada ─────────────────────────────
 
-def kb_acciones_persona(persona_id: int) -> InlineKeyboardMarkup:
+def kb_acciones_persona(persona_id: int, ya_suscrito: bool = False) -> InlineKeyboardMarkup:
+    alertas_btn = (
+        InlineKeyboardButton("🔕 Desactivar Alertas", callback_data=f"alerta_desub_{persona_id}")
+        if ya_suscrito else
+        InlineKeyboardButton("🔔 Recibir Alertas", callback_data=f"alerta_sub_{persona_id}")
+    )
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Marcar como LOCALIZADO", callback_data=f"localizado_{persona_id}")],
         [InlineKeyboardButton("📣 Tengo información",      callback_data=f"info_{persona_id}")],
-        [InlineKeyboardButton("🔗 Compartir ficha",        callback_data=f"compartir_{persona_id}")],
+        [alertas_btn, InlineKeyboardButton("🔗 Compartir", callback_data=f"compartir_{persona_id}")],
     ])
 
 
