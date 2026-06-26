@@ -564,6 +564,68 @@
       word-wrap: break-word;
     }
 
+    /* ════ TOAST & ZOOM ════ */
+    .toast {
+      position: fixed;
+      bottom: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: var(--surface);
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 1000;
+      transition: bottom 0.3s var(--ease);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      pointer-events: none;
+    }
+    .toast.show {
+      bottom: 24px;
+    }
+
+    #modal-zoom-imagen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.9);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s var(--ease);
+    }
+    #modal-zoom-imagen.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #modal-zoom-imagen img {
+      max-width: 95%;
+      max-height: 95%;
+      border-radius: 8px;
+      object-fit: contain;
+      transform: scale(0.95);
+      transition: transform 0.3s var(--ease);
+    }
+    #modal-zoom-imagen.open img {
+      transform: scale(1);
+    }
+    .btn-close-zoom {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border: none;
+      width: 36px; height: 36px;
+      border-radius: 18px;
+      font-size: 16px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+
     /* ════ UTILS ════ */
     .px-4 { padding-left: 16px; padding-right: 16px; }
     .mb-2 { margin-bottom: 8px; }
@@ -648,7 +710,7 @@
     </div>
 
     <!-- Buscador Rápido -->
-    <div class="search-bar px-4 mb-4" style="margin-top: -8px;">
+    <div class="search-wrap px-4 mb-4" style="margin-top: -8px;">
       <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
       </svg>
@@ -926,9 +988,18 @@ async function cargarScraperStatus() {
     animarNumero('kpi-matches', d.similitudes_halladas || 0);
     
     const ultima = d.ultima_ejecucion ? new Date(d.ultima_ejecucion).toLocaleTimeString() : 'Nunca';
-    el.innerHTML = `Última búsqueda: <b>${ultima}</b> <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>`;
+    el.innerHTML = `Última búsqueda: <b>${ultima}</b> <span class="pulse-dot" style="display:inline-block;margin-left:4px;margin-right:8px;"></span> <button onclick="forzarBusqueda()" style="background:var(--gold);color:#000;border:none;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer;">Forzar Búsqueda</button>`;
   } catch {
     el.innerHTML = 'Rastreando en segundo plano <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>';
+  }
+}
+
+async function forzarBusqueda() {
+  showToast('🚀 Iniciando búsqueda agéntica en segundo plano...');
+  try {
+    await fetch(`${API}/scraper/forzar`, {method: 'POST'});
+  } catch(e) {
+    console.error(e);
   }
 }
 
@@ -1065,6 +1136,18 @@ async function verDetalle(id) {
   document.getElementById('modal-detalle').classList.add('open');
 }
 
+let toastTimeout;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  if(!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
+}
+
 function cerrarModal(e) {
   if (e.target === document.getElementById('modal-detalle'))
     document.getElementById('modal-detalle').classList.remove('open');
@@ -1098,12 +1181,14 @@ function compartirFicha(id, nombre) {
 }
 
 function reportarInfo(id) {
+  showToast('💬 Abriendo chat con el bot...');
   document.getElementById('modal-detalle').classList.remove('open');
   if (window.Telegram?.WebApp) window.Telegram.WebApp.close();
   window.open(`https://t.me/DesaparecidosVzla_bot?start=info_${id}`);
 }
 
 function activarAlertas(id) {
+  showToast('🔔 Activando notificaciones...');
   document.getElementById('modal-detalle').classList.remove('open');
   if (window.Telegram?.WebApp) window.Telegram.WebApp.close();
   window.open(`https://t.me/DesaparecidosVzla_bot?start=alertas_${id}`);
