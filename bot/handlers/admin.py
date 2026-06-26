@@ -265,7 +265,7 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         texto = msg.text.strip()
         
         if "drive.google.com" in texto:
-            await msg.reply_text("📥 *Enlace de Google Drive detectado.*\n\nEl Agente IA sincronizará los archivos periódicamente en segundo plano (PDF, DOCX, Excel) para cruzar listados de hospitales.", parse_mode="Markdown")
+            await msg.reply_text("📥 *Enlace de Google Drive detectado.*\n\n✅ El Agente IA ha iniciado la extracción y filtrado en segundo plano inmediatamente. Los pacientes se consolidarán en la vista de *Hospitales* en unos instantes.", parse_mode="Markdown")
             
             # Simulamos el encolado inicial
             try:
