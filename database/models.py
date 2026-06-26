@@ -191,14 +191,31 @@ class IngresoHospital(Base):
 
     id                  = Column(Integer, primary_key=True, autoincrement=True)
     nombre_completo     = Column(String(300), nullable=False, index=True)
+    cedula              = Column(String(100), nullable=True, index=True)
     edad                = Column(Integer, nullable=True)
+    genero              = Column(String(50), nullable=True)
     hospital_nombre     = Column(String(200), nullable=False)
     fecha_ingreso       = Column(String(30), nullable=True)
     detalles_ingreso    = Column(Text, nullable=True)
+    estatus_actual      = Column(String(100), nullable=True)
+    observaciones       = Column(Text, nullable=True)
     persona_id_vinculada= Column(Integer, ForeignKey("personas.id"), nullable=True, index=True)
     creado_en           = Column(DateTime, default=datetime.utcnow)
 
     persona = relationship("Persona", backref="ingresos_hospitales")
+
+
+# ── Estadísticas Globales del Sistema (KPIs) ───────────────────────────
+
+class ScrapingStat(Base):
+    __tablename__ = "scraping_stats"
+    
+    id                   = Column(Integer, primary_key=True, autoincrement=True)
+    clave                = Column(String(50), nullable=False, unique=True, index=True) # ej: 'global_stats'
+    sitios_revisados     = Column(Integer, default=0)
+    busquedas_realizadas = Column(Integer, default=0)
+    similitudes_halladas = Column(Integer, default=0)
+    ultima_ejecucion     = Column(DateTime, default=datetime.utcnow)
 
 
 # ── Voluntarios de búsqueda colectiva ─────────────────────────────────

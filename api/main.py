@@ -208,8 +208,30 @@ async def cambiar_estado(persona_id: int, body: dict):
     ok = await actualizar_estado(persona_id, EstadoPersona(nuevo))
     if not ok:
         raise HTTPException(404, "Persona no encontrada")
+        
+    if nuevo == "fallecido":
+        persona = await get_persona(persona_id)
+        if persona and persona.contacto_chat_id:
+            import httpx
+            from config import settings
+            msg_compasivo = (
+                f"🕊️ *Lamentamos informarte...*\n\n"
+                f"Hemos recibido información confirmada sobre *{persona.nombre_completo()}*.\n"
+                f"Con profundo pesar te informamos que ha sido reportado(a) como fallecido(a).\n\n"
+                f"Estamos contigo en este difícil momento. 🙏"
+            )
+            url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+            async with httpx.AsyncClient() as client:
+                try:
+                    await client.post(url, json={
+                        "chat_id": persona.contacto_chat_id,
+                        "text": msg_compasivo,
+                        "parse_mode": "Markdown"
+                    })
+                except Exception as e:
+                    logger.error(f"Error enviando mensaje compasivo: {e}")
+                    
     return {"ok": True}
-
 
 # ── Análisis de imagen con Gemini Vision ──────────────────────────────
 
@@ -227,10 +249,19 @@ async def analizar_imagen(imagen: UploadFile = File(...)):
         shutil.copyfileobj(imagen.file, f)
 
     try:
-        datos = await procesador_imagenes.extraer_datos(str(fpath))
-        return datos.__dict__
+        lista_datos = await procesador_imagenes.extraer_datos(str(fpath))
+        return [d.__dict__ for d in lista_datos]
     finally:
         fpath.unlink(missing_ok=True)
+
+
+# ── Estadísticas de Scraping ──────────────────────────────────────────
+
+@app.get("/api/stats")
+async def stats_scraping():
+    from database.crud import get_scraping_stats
+    stats = await get_scraping_stats()
+    return stats
 
 
 # ── Mapa ───────────────────────────────────────────────────────────────

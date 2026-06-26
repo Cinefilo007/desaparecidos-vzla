@@ -82,6 +82,8 @@ class DatosExtraidos:
     ropa_ultima_vez:      Optional[str] = None
     senas_particulares:   Optional[str] = None
     condicion_medica:     Optional[str] = None
+    genero:               Optional[str] = None
+    estatus_actual:       Optional[str] = None
     es_vulnerable:        bool          = False
     razon_vulnerabilidad: Optional[str] = None
     contacto_telefono:    Optional[str] = None
@@ -188,6 +190,59 @@ class ProcesadorImagenes:
 
         except Exception as e:
             logger.error(f"Error analizando imagen: {e}")
+            return []
+
+    async def extraer_datos_de_texto(self, texto_bruto: str) -> list[DatosExtraidos]:
+        """
+        Extrae datos estructurados desde texto en crudo (ej: extraído de un PDF, Word, o Excel).
+        """
+        try:
+            prompt_texto = f"""
+{PROMPT_EXTRACCION}
+
+--- TEXTO A ANALIZAR ---
+{texto_bruto}
+"""
+            response = await self.model.generate_content_async(prompt_texto)
+            datos_raw = self._parsear_json(response.text)
+
+            personas_raw = datos_raw.get("personas", [])
+            if not personas_raw and any(k in datos_raw for k in ["nombre", "apellidos", "cedula"]):
+                personas_raw = [datos_raw]
+
+            resultados = []
+            for p_raw in personas_raw:
+                datos = DatosExtraidos(
+                    nombre=p_raw.get("nombre"),
+                    apellidos=p_raw.get("apellidos"),
+                    cedula=self._limpiar_cedula(p_raw.get("cedula")),
+                    edad=p_raw.get("edad"),
+                    genero=p_raw.get("genero"),
+                    ultima_ubicacion=p_raw.get("ultima_ubicacion"),
+                    zona=p_raw.get("zona"),
+                    fecha_desaparicion=p_raw.get("fecha_desaparicion"),
+                    hora_desaparicion=p_raw.get("hora_desaparicion"),
+                    descripcion_fisica=p_raw.get("descripcion_fisica"),
+                    ropa_ultima_vez=p_raw.get("ropa_ultima_vez"),
+                    senas_particulares=p_raw.get("senas_particulares"),
+                    condicion_medica=p_raw.get("condicion_medica"),
+                    estatus_actual=p_raw.get("estatus_actual"),
+                    es_vulnerable=p_raw.get("es_vulnerable", False),
+                    razon_vulnerabilidad=p_raw.get("razon_vulnerabilidad"),
+                    contacto_telefono=p_raw.get("contacto_telefono"),
+                    contacto_nombre=p_raw.get("contacto_nombre"),
+                    tipo_imagen="documento_texto",
+                    confianza=float(datos_raw.get("confianza", 0.5)),
+                    notas=datos_raw.get("notas"),
+                )
+                datos.campos_faltantes = self._calcular_faltantes(datos)
+                resultados.append(datos)
+                
+            logger.info(f"Texto analizado: {len(resultados)} personas detectadas.")
+            return resultados
+
+        except Exception as e:
+            logger.error(f"Error analizando texto con IA: {e}")
             return []
 
     def generar_resumen_telegram(self, datos: DatosExtraidos) -> str:

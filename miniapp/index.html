@@ -262,6 +262,7 @@
     .badge.danger  { background: rgba(207,20,43,.15); color: var(--red); border: 1px solid rgba(207,20,43,.3); }
     .badge.success { background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.25); }
     .badge.warning { background: rgba(245,200,66,.12); color: var(--gold);  border: 1px solid rgba(245,200,66,.25); }
+    .badge.fallecido { background: rgba(0,0,0,.3); color: #888; border: 1px solid rgba(255,255,255,.2); }
     .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
     /* ════ BTN PRINCIPAL ════ */
@@ -619,12 +620,28 @@
 
     <!-- KPIs de actividad del bot -->
     <div class="px-4 mb-4">
-      <div id="scraper-kpi" style="background:var(--surface-2);border-radius:var(--r-card);padding:12px;display:flex;align-items:center;gap:12px;border:1px solid var(--border)">
-        <div style="font-size:24px;">📡</div>
-        <div style="flex:1">
-          <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Bot de Scraping</div>
-          <div id="scraper-detail" style="font-size:12px;font-weight:500;margin-top:2px;">
-            Conectando... <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>
+      <div id="scraper-kpi" style="background:var(--surface-2);border-radius:var(--r-card);padding:12px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <div style="font-size:24px;">🤖</div>
+          <div style="flex:1">
+            <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Agente IA de Búsqueda</div>
+            <div id="scraper-detail" style="font-size:12px;font-weight:500;margin-top:2px;">
+              Analizando redes y GDrive... <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;" class="kpis-scraper">
+          <div class="kpi-sc">
+            <div style="font-size:16px;font-weight:700;" id="kpi-sitios">0</div>
+            <div style="font-size:10px;color:var(--text-2);">SITIOS</div>
+          </div>
+          <div class="kpi-sc">
+            <div style="font-size:16px;font-weight:700;" id="kpi-busquedas">0</div>
+            <div style="font-size:10px;color:var(--text-2);">BÚSQUEDAS</div>
+          </div>
+          <div class="kpi-sc" style="background:rgba(34,197,94,0.05);border-color:rgba(34,197,94,0.1)">
+            <div style="font-size:16px;font-weight:700;color:var(--green);" id="kpi-matches">0</div>
+            <div style="font-size:10px;color:var(--text-2);">MATCHES</div>
           </div>
         </div>
       </div>
@@ -901,18 +918,17 @@ async function cargarScraperStatus() {
   const el = document.getElementById('scraper-detail');
   if (!el) return;
   try {
-    const r = await fetch(`${API}/scraper-status`);
+    const r = await fetch(`${API}/stats`);
     const d = await r.json();
-    const n = d.fuentes_activas || 0;
-    const tipos = (d.fuentes || []).map(f => {
-      const iconos = {web:'🌐',telegram_channel:'📨',twitter_profile:'🐦',hashtag:'#️⃣'};
-      return iconos[f.tipo] || '📄';
-    });
-    const iconStr = [...new Set(tipos)].join(' ');
-    const modo = d.scheduler?.modo || 'activo';
-    el.innerHTML = `Rastreando <b>${n}</b> fuentes ${iconStr} · Modo: <b>${modo}</b> <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>`;
+    
+    animarNumero('kpi-sitios', d.sitios_revisados || 0);
+    animarNumero('kpi-busquedas', d.busquedas_realizadas || 0);
+    animarNumero('kpi-matches', d.similitudes_halladas || 0);
+    
+    const ultima = d.ultima_ejecucion ? new Date(d.ultima_ejecucion).toLocaleTimeString() : 'Nunca';
+    el.innerHTML = `Última búsqueda: <b>${ultima}</b> <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>`;
   } catch {
-    el.innerHTML = 'Rastreando fuentes en segundo plano <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>';
+    el.innerHTML = 'Rastreando en segundo plano <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>';
   }
 }
 
@@ -982,8 +998,8 @@ function renderPersonas(personas, containerId) {
 }
 
 function cardPersona(p) {
-  const badgeClass = p.estado === 'localizado' ? 'success' : p.estado === 'posible' ? 'warning' : 'danger';
-  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : p.estado === 'posible' ? '🟡 Posible avistamiento' : '🔴 Sin contacto';
+  const badgeClass = p.estado === 'localizado' ? 'success' : p.estado === 'fallecido' ? 'fallecido' : p.estado === 'posible' ? 'warning' : 'danger';
+  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : p.estado === 'fallecido' ? '✝️ Fallecido' : p.estado === 'posible' ? '🟡 Posible avistamiento' : '🔴 Sin contacto';
   const foto = p.foto_url
     ? `<img class="persona-foto" src="${p.foto_url}" alt="${p.nombre}" loading="lazy" />`
     : `<div class="persona-foto">👤</div>`;
@@ -1021,8 +1037,8 @@ async function verDetalle(id) {
     p = (state.personas.find(x => x.id === id)) || getDemoPersonas()[0];
   }
   state.personaSeleccionada = p;
-  const badgeClass = p.estado === 'localizado' ? 'success' : 'danger';
-  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : '🔴 Sin contacto';
+  const badgeClass = p.estado === 'localizado' ? 'success' : p.estado === 'fallecido' ? 'fallecido' : p.estado === 'posible' ? 'warning' : 'danger';
+  const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : p.estado === 'fallecido' ? '✝️ Fallecido' : p.estado === 'posible' ? '🟡 Posible avistamiento' : '🔴 Sin contacto';
   const foto = p.foto_url
     ? `<img class="detalle-foto" src="${p.foto_url}" alt="${p.nombre}" onclick="abrirImagen('${p.foto_url}')" style="cursor:zoom-in" />`
     : `<div class="detalle-foto">👤</div>`;

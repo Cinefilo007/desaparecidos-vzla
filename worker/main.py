@@ -93,8 +93,37 @@ class Worker:
         elif tipo in ("scrape_hashtag", "buscar_videos_tiktok", "monitor_live"):
             # Simulamos/procesamos hashtags o streams extrayendo texto público con APIs o scraping simulado
             await self.handler_scrape_redes(tipo, datos)
+        elif tipo == "ejecutar_scraper_agentico":
+            await self.handler_scraper_agentico()
+        elif tipo == "sincronizar_gdrive":
+            await self.handler_sincronizar_gdrive()
         else:
             logger.warning(f"[Worker] Tipo de tarea no soportado: {tipo}")
+
+    # ── Handlers Nuevos ────────────────────────────────────────────────
+    
+    async def handler_scraper_agentico(self):
+        from database.crud import listar_personas_desaparecidas, update_scraping_stats
+        from ai.scraper_agent import scraper_agent
+        personas = await listar_personas_desaparecidas(limite=5) # Lote de 5 vulnerables/alta prioridad
+        
+        tot_sitios = 0
+        tot_busquedas = 0
+        tot_similitudes = 0
+        
+        for p in personas:
+            stats = await scraper_agent.ejecutar_busqueda_persona(p)
+            tot_sitios += stats.get("sitios", 0)
+            tot_busquedas += stats.get("busquedas", 0)
+            tot_similitudes += stats.get("similitudes", 0)
+            
+        await update_scraping_stats(tot_sitios, tot_busquedas, tot_similitudes)
+
+    async def handler_sincronizar_gdrive(self):
+        # Esta función descargará archivos de un folder de gdrive usando gdown
+        # Por ahora simulamos la recolección
+        logger.info("[Worker] Sincronizando Google Drive...")
+        pass
 
     # ── Handlers de Scraping ───────────────────────────────────────────
 

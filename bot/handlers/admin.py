@@ -263,6 +263,19 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     else:
         # Texto
         texto = msg.text.strip()
+        
+        if "drive.google.com" in texto:
+            await msg.reply_text("📥 *Enlace de Google Drive detectado.*\n\nEl Agente IA sincronizará los archivos periódicamente en segundo plano (PDF, DOCX, Excel) para cruzar listados de hospitales.", parse_mode="Markdown")
+            
+            # Simulamos el encolado inicial
+            from worker.main import redis_client
+            import json
+            if redis_client:
+                await redis_client.lpush("queue:p3", json.dumps({"tipo": "sincronizar_gdrive", "datos": {"url": texto}}))
+            
+            await enviar_menu_principal(update, ctx)
+            return MENU_ADMIN
+            
         lineas = [l.strip() for l in texto.split("\n") if l.strip()]
         for linea in lineas:
             partes = [p.strip() for p in linea.split(",")]

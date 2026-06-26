@@ -38,6 +38,8 @@ FRECUENCIAS = {
     "noticias_vzla":     [30, 30,  60,  60],
     "live_streams":      [1,   2, 9999, 9999],
     "procesar_cola":     [2,   5,  9999, 9999],
+    "scraper_agentico":  [30, 60, 120, 9999],
+    "sincronizar_gdrive":[60, 120, 9999, 9999],
 }
 
 MODO_IDX = {Modo.PLENO: 0, Modo.MODERADO: 1, Modo.ECONOMICO: 2, Modo.EMERGENCIA: 3}
@@ -197,6 +199,17 @@ class PlanificadorAdaptativo:
         """Señaliza al worker que procese la cola."""
         await self.redis.publish("worker:procesar", "1")
 
+    async def job_scraper_agentico(self):
+        modo = await self.get_modo()
+        if modo == Modo.EMERGENCIA:
+            return
+        await self.encolar("ejecutar_scraper_agentico", {}, prioridad=2)
+        logger.info("[scraper_agentico] Tarea encolada")
+
+    async def job_sincronizar_gdrive(self):
+        await self.encolar("sincronizar_gdrive", {}, prioridad=3)
+        logger.info("[gdrive] Tarea de sincronización encolada")
+
     # ── Auto-ajuste de frecuencias ─────────────────────────────────────
 
     async def auto_ajustar(self):
@@ -269,6 +282,8 @@ class PlanificadorAdaptativo:
             "noticias_vzla":     self.job_noticias,
             "live_streams":      self.job_live_streams,
             "procesar_cola":     self.job_procesar_cola,
+            "scraper_agentico":  self.job_scraper_agentico,
+            "sincronizar_gdrive":self.job_sincronizar_gdrive,
         }
 
         for nombre, func in jobs_config.items():

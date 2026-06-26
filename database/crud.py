@@ -151,6 +151,48 @@ async def buscar_por_nombre(texto: str, limit: int = 20) -> List[Persona]:
         return list(result.scalars().all())
 
 
+async def buscar_personas(filtros: dict, limite: int = 50) -> List[Persona]:
+    async with db_session() as s:
+        q = select(Persona).order_by(Persona.creado_en.desc())
+        
+        # Filtros básicos
+        if "estado" in filtros:
+            q = q.where(Persona.estado == filtros["estado"])
+        if "prioridad" in filtros:
+            q = q.where(Persona.prioridad == filtros["prioridad"])
+            
+        # Filtro por ubicación / zona
+        if "zona" in filtros:
+            q = q.where(Persona.zona.ilike(f"%{filtros['zona']}%"))
+            
+        # Filtro de búsqueda de texto
+        text_query = filtros.get("query", "").strip()
+        if text_query:
+            # Buscar en nombre, apellidos o cedula
+            q = q.where(
+                or_(
+                    Persona.nombre.ilike(f"%{text_query}%"),
+                    Persona.apellidos.ilike(f"%{text_query}%"),
+                    Persona.cedula.ilike(f"%{text_query}%")
+                )
+            )
+            
+        q = q.limit(limite)
+        result = await s.execute(q)
+        return list(result.scalars().all())
+
+async def listar_personas_desaparecidas(limite: int = 5) -> List[Persona]:
+    """Retorna un lote de personas buscadas, priorizando las vulnerables."""
+    async with db_session() as s:
+        result = await s.execute(
+            select(Persona)
+            .where(Persona.estado == EstadoPersona.BUSCADO)
+            .order_by(Persona.es_vulnerable.desc(), Persona.creado_en.asc())
+            .limit(limite)
+        )
+        return list(result.scalars().all())
+
+
 async def actualizar_estado(persona_id: int, nuevo_estado: EstadoPersona) -> bool:
     async with db_session() as s:
         result = await s.execute(
@@ -339,6 +381,7 @@ async def desactivar_fuente_scraping(fuente_id: int) -> bool:
 async def registrar_ingreso_hospital(datos: dict) -> IngresoHospital:
     """Registra el ingreso de una persona en un hospital y busca coincidencias con desaparecidos."""
     nombre_completo = datos.get("nombre_completo", "")
+    cedula_ingreso = datos.get("cedula")
     from loguru import logger
     
     async with db_session() as s:
@@ -347,29 +390,82 @@ async def registrar_ingreso_hospital(datos: dict) -> IngresoHospital:
         s.add(ingreso)
         await s.flush()
         
-        # 2. Intentar buscar coincidencia automática en base de datos con personas en búsqueda activa
-        partes_nombre = nombre_completo.split()
-        if partes_nombre:
-            query_parts = []
-            for p in partes_nombre[:3]:  # primeras 3 palabras
-                query_parts.append(Persona.nombre.ilike(f"%{p}%"))
-                query_parts.append(Persona.apellidos.ilike(f"%{p}%"))
-                
-            coincidencias = await s.execute(
-                select(Persona).where(
-                    and_(
-                        Persona.estado == EstadoPersona.BUSCADO,
-                        or_(*query_parts)
+        # 2. Intentar coincidencia por cédula primero
+        persona_coincidente = None
+        if cedula_ingreso:
+            # Normalizar cédula básica
+            ced_limpia = "".join(filter(str.isdigit, str(cedula_ingreso)))
+            if ced_limpia:
+                coincidencia_ced = await s.execute(
+                    select(Persona).where(
+                        and_(
+                            Persona.estado == EstadoPersona.BUSCADO,
+                            Persona.cedula.like(f"%{ced_limpia}%")
+                        )
                     )
                 )
-            )
-            persona_coincidente = coincidencias.scalars().first()
-            if persona_coincidente:
-                ingreso.persona_id_vinculada = persona_coincidente.id
-                logger.info(f"[Hospital] Coincidencia detectada: Ingreso '{nombre_completo}' vinculado a Persona #{persona_coincidente.id}")
+                persona_coincidente = coincidencia_ced.scalars().first()
+
+        # 3. Si no hay cédula, buscar por coincidencias de nombre
+        if not persona_coincidente and nombre_completo:
+            partes_nombre = nombre_completo.split()
+            if partes_nombre:
+                query_parts = []
+                for p in partes_nombre[:3]:  # primeras 3 palabras
+                    if len(p) > 2:
+                        query_parts.append(Persona.nombre.ilike(f"%{p}%"))
+                        query_parts.append(Persona.apellidos.ilike(f"%{p}%"))
+                
+                if query_parts:
+                    coincidencias = await s.execute(
+                        select(Persona).where(
+                            and_(
+                                Persona.estado == EstadoPersona.BUSCADO,
+                                or_(*query_parts)
+                            )
+                        )
+                    )
+                    persona_coincidente = coincidencias.scalars().first()
+                
+        if persona_coincidente:
+            ingreso.persona_id_vinculada = persona_coincidente.id
+            logger.info(f"[Hospital] Coincidencia detectada: Ingreso '{nombre_completo}' vinculado a Persona #{persona_coincidente.id}")
                 
         await s.refresh(ingreso)
         return ingreso
+
+
+# ── CRUD: Estadísticas de Scraping ─────────────────────────────────────
+
+async def get_scraping_stats() -> dict:
+    async with db_session() as s:
+        result = await s.execute(select(ScrapingStat).where(ScrapingStat.clave == 'global_stats'))
+        stat = result.scalars().first()
+        if not stat:
+            stat = ScrapingStat(clave='global_stats')
+            s.add(stat)
+            await s.commit()
+            await s.refresh(stat)
+        return {
+            "sitios_revisados": stat.sitios_revisados,
+            "busquedas_realizadas": stat.busquedas_realizadas,
+            "similitudes_halladas": stat.similitudes_halladas,
+            "ultima_ejecucion": stat.ultima_ejecucion.isoformat() if stat.ultima_ejecucion else None
+        }
+
+async def update_scraping_stats(sitios: int = 0, busquedas: int = 0, similitudes: int = 0):
+    async with db_session() as s:
+        result = await s.execute(select(ScrapingStat).where(ScrapingStat.clave == 'global_stats'))
+        stat = result.scalars().first()
+        if not stat:
+            stat = ScrapingStat(clave='global_stats')
+            s.add(stat)
+        
+        stat.sitios_revisados += sitios
+        stat.busquedas_realizadas += busquedas
+        stat.similitudes_halladas += similitudes
+        stat.ultima_ejecucion = datetime.utcnow()
+        await s.commit()
 
 
 async def listar_ingresos_hospitales(limite: int = 100) -> List[IngresoHospital]:
