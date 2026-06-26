@@ -22,9 +22,10 @@ from bot.keyboards import kb_cancelar
     ESPERANDO_TIPO_FUENTE,
     ESPERANDO_URL_FUENTE,
     ESPERANDO_NOMBRE_FUENTE,
+    ESPERANDO_NOMBRE_HOSPITAL,
     ESPERANDO_LISTA_HOSPITAL,
     ESPERANDO_FOTO_ENCONTRADOS,
-) = range(100, 106)
+) = range(100, 107)
 
 
 def es_administrador(chat_id: str) -> bool:
@@ -219,10 +220,22 @@ async def cb_cargar_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     
     await query.message.edit_text(
         "🏥 *Carga Masiva de Hospital*\n\n"
-        "Pega aquí el texto o *envía una foto* de la lista de personas ingresadas.\n\n"
+        "Por favor, escribe el *nombre del hospital o refugio* al que pertenece la lista que vas a subir:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
+    )
+    return ESPERANDO_NOMBRE_HOSPITAL
+
+async def recibir_nombre_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    nombre_hospital = update.message.text.strip()
+    ctx.user_data["hospital_nombre"] = nombre_hospital
+    
+    await update.message.reply_text(
+        f"🏥 Hospital fijado: *{nombre_hospital}*\n\n"
+        "Ahora, pega aquí el texto o *envía una foto* de la lista de personas ingresadas.\n\n"
         "*Formato sugerido para texto (una por línea):*\n"
-        "`Juan Perez, 30, Hospital Central, traumatismo`\n"
-        "`Maria Gomez, 25, Clínica Avila, estable`\n\n"
+        "`Juan Perez, 30, traumatismo`\n"
+        "`Maria Gomez, 25, estable`\n\n"
         "El sistema cruzará estos datos con los reportes de desaparecidos automáticamente.",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
@@ -255,7 +268,7 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
             await enviar_menu_principal(update, ctx)
             return MENU_ADMIN
             
-        hospital_global = msg.caption or "Hospital/Centro (Extraído de listado)"
+        hospital_global = ctx.user_data.get("hospital_nombre", msg.caption or "Hospital/Centro (Extraído de listado)")
         for d in lista_datos:
             if d.nombre:
                 ingresos_a_procesar.append({
@@ -488,6 +501,11 @@ def get_admin_handler() -> ConversationHandler:
             ],
             ESPERANDO_NOMBRE_FUENTE: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre_fuente),
+                CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
+                CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
+            ],
+            ESPERANDO_NOMBRE_HOSPITAL: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_nombre_hospital),
                 CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],

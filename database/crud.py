@@ -191,13 +191,37 @@ async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
                 "estado": p.estado.value if p.estado else None
             })
             
+        # Consultar también la nueva tabla de ingresos_hospitales
+        from database.models import IngresoHospital
+        q_ingresos = select(IngresoHospital)
+        result_ing = await s.execute(q_ingresos)
+        ingresos = result_ing.scalars().all()
+        
+        for ing in ingresos:
+            ubi = ing.hospital_nombre.strip()
+            if not ubi:
+                continue
+            if ubi not in agrupados:
+                agrupados[ubi] = []
+                
+            agrupados[ubi].append({
+                "id": f"ingreso_{ing.id}",
+                "nombre": ing.nombre_completo,
+                "edad": ing.edad,
+                "cedula": getattr(ing, 'cedula', None),
+                "foto_url": None, # Los ingresos directos usualmente no tienen foto individual
+                "estado": "Ingresado",
+                "detalles": ing.detalles_ingreso
+            })
+            
         # Filtrar duplicados dentro de la misma ubicación por nombre y cédula
         for ubi, lista in agrupados.items():
             unicos = []
             vistos = set()
             for p in lista:
-                # Usar cédula si la hay, si no, el nombre en minúsculas
-                clave = p["cedula"] or p["nombre"].lower()
+                clave = p.get("cedula")
+                if not clave:
+                    clave = p["nombre"].lower()
                 if clave not in vistos:
                     vistos.add(clave)
                     unicos.append(p)
