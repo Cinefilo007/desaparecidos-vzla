@@ -75,7 +75,9 @@ async def enviar_menu_principal(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         await update.callback_query.message.edit_text(texto, parse_mode="Markdown", reply_markup=teclado)
     else:
         send = update.callback_query.message.reply_text if update.callback_query else update.message.reply_text
+        logger.info("[Admin] Enviando menú principal a Telegram...")
         await send(texto, parse_mode="Markdown", reply_markup=teclado)
+        logger.info("[Admin] Menú principal enviado correctamente.")
 
 
 # ── Agregar Fuente de Scraping ──────────────────────────────────────────
@@ -502,7 +504,8 @@ def get_admin_handler() -> ConversationHandler:
         },
         fallbacks=[
             CommandHandler("cancelar", cancelar_admin),
-            CallbackQueryHandler(cancelar_admin, pattern="^cancelar$")
+            CallbackQueryHandler(cancelar_admin, pattern="^cancelar$"),
+            MessageHandler(filters.Regex("^⚙️ Panel Administrar$"), iniciar_admin)
         ],
         conversation_timeout=300,
         name="admin",

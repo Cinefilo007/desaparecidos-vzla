@@ -449,6 +449,7 @@ def get_registro_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("cancelar", cancelar),
             CallbackQueryHandler(cancelar, pattern="^cancelar$"),
+            MessageHandler(filters.Regex("^📝 Registrar Persona$"), iniciar_registro)
         ],
         conversation_timeout=600,  # 10 minutos
         name="registro",

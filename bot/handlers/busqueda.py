@@ -338,7 +338,9 @@ def get_busqueda_handler() -> ConversationHandler:
                 MessageHandler(filters.PHOTO, ejecutar_busqueda_por_rostro),
             ],
         },
-        fallbacks=[],
+        fallbacks=[
+            MessageHandler(filters.Regex("^🔍 Buscar Persona$"), iniciar_busqueda)
+        ],
         conversation_timeout=120,
         name="busqueda",
     )
