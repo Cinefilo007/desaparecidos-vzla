@@ -90,7 +90,8 @@ async def cb_agregar_fuente(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> i
             InlineKeyboardButton("📢 Canal Telegram", callback_data="src_tipo_telegram_channel")
         ],
         [
-            InlineKeyboardButton("🐦 Perfil de X (Twitter)", callback_data="src_tipo_twitter_profile")
+            InlineKeyboardButton("🐦 Perfil de X (Twitter)", callback_data="src_tipo_twitter_profile"),
+            InlineKeyboardButton("#️⃣ Hashtag (Búsqueda general)", callback_data="src_tipo_hashtag")
         ],
         [InlineKeyboardButton("🔙 Atrás", callback_data="admin_volver")]
     ])
@@ -106,7 +107,8 @@ async def cb_tipo_fuente_seleccionada(update: Update, ctx: ContextTypes.DEFAULT_
     tipo_mapeo = {
         "src_tipo_web": "web",
         "src_tipo_telegram_channel": "telegram_channel",
-        "src_tipo_twitter_profile": "twitter_profile"
+        "src_tipo_twitter_profile": "twitter_profile",
+        "src_tipo_hashtag": "hashtag"
     }
     
     tipo = tipo_mapeo.get(query.data, "web")
@@ -115,7 +117,8 @@ async def cb_tipo_fuente_seleccionada(update: Update, ctx: ContextTypes.DEFAULT_
     ejemplos = {
         "web": "Escribe la URL del portal (ej: `https://eldiario.com/sucesos/`):",
         "telegram_channel": "Escribe el canal de Telegram con el @ (ej: `@ProteccionCivilVzla`):",
-        "twitter_profile": "Escribe el perfil de X (Twitter) sin el @ (ej: `PeriodistaVzla`):"
+        "twitter_profile": "Escribe el perfil de X (Twitter) sin el @ (ej: `PeriodistaVzla`):",
+        "hashtag": "Escribe el hashtag a rastrear incluyendo el # (ej: `#DesaparecidosVzla`):"
     }
     
     await query.message.edit_text(
@@ -134,6 +137,8 @@ async def recibir_url_fuente(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     # Validaciones básicas
     if tipo == "telegram_channel" and not url.startswith("@"):
         url = "@" + url
+    elif tipo == "hashtag" and not url.startswith("#"):
+        url = "#" + url
         
     ctx.user_data["admin_new_source_url"] = url
     

@@ -13,10 +13,13 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+# Add file logging
+logger.add("app.log", rotation="10 MB", retention="5 days", level="INFO")
+
 from config import settings
 from database.crud import (
     init_db, crear_persona, buscar_por_nombre, listar_personas,
-    get_persona, get_estadisticas, actualizar_estado,
+    get_persona, get_estadisticas, actualizar_estado, buscar_posible_duplicado
 )
 from database.models import EstadoPersona
 from ai.image_processor import procesador_imagenes
@@ -40,6 +43,9 @@ app.add_middleware(
 
 UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(exist_ok=True)
+
+# Servir uploads
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Servir la Mini App como archivos estáticos
 MINIAPP_DIR = Path("miniapp")
@@ -68,11 +74,20 @@ async def root():
     return {"status": "ok", "docs": "/docs"}
 
 
-# ── Estadísticas ───────────────────────────────────────────────────────
+# ── Estadísticas y Logs ──────────────────────────────────────────────────
 
 @app.get("/api/stats")
 async def get_stats():
     return await get_estadisticas()
+
+@app.get("/api/logs")
+async def get_logs(lines: int = 50):
+    try:
+        with open("app.log", "r", encoding="utf-8") as f:
+            all_lines = f.readlines()
+            return {"logs": all_lines[-lines:]}
+    except Exception as e:
+        return {"logs": [f"Error al leer logs: {e}"]}
 
 
 # ── Personas ───────────────────────────────────────────────────────────
@@ -114,6 +129,24 @@ async def registrar_persona(
     foto:  Optional[UploadFile] = File(None),
 ):
     datos_dict = json.loads(datos)
+
+    # Prevención estricta de duplicados
+    cedula = datos_dict.get("cedula")
+    if cedula:
+        from database.crud import buscar_por_nombre
+        matches = await buscar_por_nombre(cedula, limit=1)
+        if matches:
+            raise HTTPException(409, "Ya existe una persona registrada con esta cédula.")
+            
+    nombre = datos_dict.get("nombre")
+    if nombre:
+        duplicado = await buscar_posible_duplicado(
+            nombre=nombre + " " + datos_dict.get("apellidos", ""),
+            edad=datos_dict.get("edad"),
+            zona=datos_dict.get("zona")
+        )
+        if duplicado:
+            raise HTTPException(409, "Ya existe una persona registrada con estos datos.")
 
     foto_path = None
     if foto and foto.filename:
@@ -299,7 +332,7 @@ def _persona_to_dict(p) -> dict:
         "descripcion_fisica": p.descripcion_fisica,
         "condicion_medica": p.condicion_medica,
         "fecha_desaparicion": p.fecha_desaparicion,
-        "foto_url":         p.foto_url,
+        "foto_url":         p.foto_url or (f"/{p.foto_rostro_local_path}" if p.foto_rostro_local_path else (f"/{p.foto_local_path}" if p.foto_local_path else None)),
         "lat":              p.lat,
         "lng":              p.lng,
         "creado_en":        p.creado_en.isoformat() if p.creado_en else None,

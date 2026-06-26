@@ -18,22 +18,22 @@
     :root {
       --gold:       #F5C842;
       --gold-dim:   #C9A528;
-      --red:        #CF142B;
-      --red-dim:    #9B0F20;
-      --green:      #22C55E;
-      --green-dim:  #15803D;
-      --blue:       #003DA5;
+      --red:        #EF4444;
+      --red-dim:    #DC2626;
+      --green:      #10B981;
+      --green-dim:  #059669;
+      --blue:       #3B82F6;
 
-      --bg:         #08080F;
-      --surface:    #111119;
-      --surface-2:  #1A1A26;
-      --surface-3:  #22222F;
-      --border:     rgba(255,255,255,0.07);
-      --border-hot: rgba(245,200,66,0.35);
+      --bg:         #F9FAFB;
+      --surface:    #FFFFFF;
+      --surface-2:  #F3F4F6;
+      --surface-3:  #E5E7EB;
+      --border:     rgba(0,0,0,0.06);
+      --border-hot: rgba(245,200,66,0.6);
 
-      --text:       #F0F0FA;
-      --text-2:     #9090B0;
-      --text-3:     #5A5A78;
+      --text:       #111827;
+      --text-2:     #4B5563;
+      --text-3:     #9CA3AF;
 
       --r-card:   16px;
       --r-btn:    12px;
@@ -228,7 +228,7 @@
     .persona-card:hover, .persona-card:active {
       border-color: var(--border-hot);
       transform: scale(.99);
-      box-shadow: 0 4px 24px rgba(0,0,0,.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,.08);
     }
     .persona-foto {
       width: 54px; height: 54px;
@@ -282,7 +282,7 @@
       transition: transform .15s var(--spring), box-shadow .2s, filter .15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 6px 20px rgba(245,200,66,.35); }
+    .btn-primary:hover  { filter: brightness(1.08); box-shadow: 0 6px 12px rgba(245,200,66,.25); }
     .btn-primary:active { transform: scale(.97); }
 
     .btn-secondary {
@@ -447,12 +447,12 @@
     nav {
       height: calc(var(--nav-h) + var(--safe-b));
       padding-bottom: var(--safe-b);
-      background: rgba(8,8,15,.92);
+      background: rgba(255,255,255,.92);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-top: 1px solid var(--border);
       display: grid;
-      grid-template-columns: repeat(4,1fr);
+      grid-template-columns: repeat(5,1fr);
       align-items: center;
       flex-shrink: 0;
     }
@@ -545,6 +545,21 @@
       background: var(--border);
       border-radius: 2px;
       margin: 12px auto 0;
+    }
+
+    /* ════ LOGS VIEWER ════ */
+    .logs-container {
+      background: #1E1E1E;
+      color: #00FF00;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 12px;
+      border-radius: var(--r-card);
+      height: calc(100dvh - var(--nav-h) - 100px);
+      overflow-y: auto;
+      margin: 0 16px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     /* ════ UTILS ════ */
@@ -728,7 +743,20 @@
       <span class="nav-icon">🗺️</span>
       <span class="nav-label">Mapa</span>
     </button>
+    <button class="nav-btn hidden" id="nav-admin" onclick="irA('admin')">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">Admin</span>
+    </button>
   </nav>
+</div>
+
+<!-- ── ADMIN LOGS ── -->
+<div id="view-admin" class="view hidden" style="position:absolute;top:var(--nav-h);left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-b));background:var(--bg);z-index:90;">
+  <div class="section-title">🔍 Logs del Motor de Búsqueda Web</div>
+  <div class="px-4 mb-2">
+    <button class="btn-secondary" onclick="cargarLogs()">🔄 Refrescar Logs</button>
+  </div>
+  <div class="logs-container" id="admin-logs">Cargando logs...</div>
 </div>
 
 <!-- ── MODAL DETALLE ── -->
@@ -754,8 +782,8 @@ if (tg) {
   tg.ready();
   tg.expand();
   tg.enableClosingConfirmation();
-  tg.setHeaderColor('#08080F');
-  tg.setBackgroundColor('#08080F');
+  tg.setHeaderColor('#F9FAFB');
+  tg.setBackgroundColor('#F9FAFB');
 }
 
 // ── API Base URL ───────────────────────────────────────────────
@@ -785,6 +813,7 @@ function irA(vista) {
   if (vista === 'home')     cargarStats();
   if (vista === 'mapa')     iniciarMapa();
   if (vista === 'registrar') resetRegistro();
+  if (vista === 'admin')    cargarLogs();
 }
 
 // ── Stats (Home) ───────────────────────────────────────────────
@@ -1136,11 +1165,30 @@ function getDemoPuntosMapa() {
   ];
 }
 
+// ── Admin Logs ──────────────────────────────────────────────────
+async function cargarLogs() {
+  const container = document.getElementById('admin-logs');
+  container.textContent = "Cargando logs...";
+  try {
+    const r = await fetch(`${API}/logs?lines=100`);
+    const d = await r.json();
+    container.textContent = (d.logs || []).join('');
+    container.scrollTop = container.scrollHeight;
+  } catch (e) {
+    container.textContent = "Error obteniendo logs de scraping en segundo plano.";
+  }
+}
+
 // ── Init ───────────────────────────────────────────────────────
 (function init() {
   cargarStats();
   // Navegar a persona si viene en URL
   const params = new URLSearchParams(window.location.search);
+  
+  if (params.get('admin') === '1') {
+    document.getElementById('nav-admin').classList.remove('hidden');
+  }
+
   const personaId = params.get('persona');
   if (personaId) setTimeout(() => verDetalle(parseInt(personaId)), 500);
 })();
