@@ -30,14 +30,14 @@ class Modo(str, Enum):
 # ── Frecuencias por fuente y modo (minutos; 9999 = deshabilitado) ──────
 
 FRECUENCIAS = {
-    "web_desaparecidos": [10, 15, 30, 60],
-    "twitter_hashtags":  [15, 20, 60, 9999],
-    "tiktok_search":     [20, 30, 9999, 9999],
-    "instagram":         [25, 40, 9999, 9999],
-    "telegram_channels": [5,  10,  20,  30],
-    "noticias_vzla":     [30, 30,  60,  60],
-    "live_streams":      [1,   2, 9999, 9999],
-    "procesar_cola":     [2,   5,  9999, 9999],
+    "web_desaparecidos": [30, 45, 60, 120],
+    "twitter_hashtags":  [20, 30, 60, 9999],
+    "tiktok_search":     [30, 60, 9999, 9999],
+    "instagram":         [30, 60, 9999, 9999],
+    "telegram_channels": [20, 30,  60,  120],
+    "noticias_vzla":     [30, 60,  120,  240],
+    "live_streams":      [20, 30, 9999, 9999],
+    "procesar_cola":     [5,   10,  9999, 9999],
     "scraper_agentico":  [30, 60, 120, 9999],
     "sincronizar_gdrive":[60, 120, 9999, 9999],
 }
