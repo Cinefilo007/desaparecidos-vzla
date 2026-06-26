@@ -242,11 +242,11 @@ async def recibir_nombre_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         
     ingresos_a_procesar = []
     for d in pendientes:
-        if d.nombre:
+        if d.nombre or d.apellidos:
             ingresos_a_procesar.append({
                 "nombre_completo": d.nombre_completo(),
                 "edad": d.edad,
-                "hospital_nombre": nombre_hospital,
+                "hospital_nombre": d.ultima_ubicacion or nombre_hospital,
                 "detalles_ingreso": d.condicion_medica or "Ingreso clínico",
                 "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
             })
@@ -310,7 +310,17 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
             
         # Si la IA no detectó un hospital en la imagen/documento y no tenemos uno guardado
         hospital_global = hosp_ai or ctx.user_data.get("hospital_nombre") or msg.caption
-        if not hospital_global:
+        
+        # Validar si falta el hospital y NO está en la ubicación del paciente individual
+        falta_hospital = False
+        for d in lista_datos:
+            if d.nombre or d.apellidos:
+                hosp = d.ultima_ubicacion or hospital_global
+                if not hosp:
+                    falta_hospital = True
+                    break
+
+        if falta_hospital:
             # Guardar temporalmente y pedir nombre
             ctx.user_data["ingresos_pendientes"] = lista_datos
             await msg.reply_text(
@@ -321,11 +331,11 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
             return ESPERANDO_NOMBRE_HOSPITAL
             
         for d in lista_datos:
-            if d.nombre:
+            if d.nombre or d.apellidos:
                 ingresos_a_procesar.append({
                     "nombre_completo": d.nombre_completo(),
                     "edad": d.edad,
-                    "hospital_nombre": hospital_global,
+                    "hospital_nombre": d.ultima_ubicacion or hospital_global,
                     "detalles_ingreso": d.condicion_medica or "Ingreso clínico",
                     "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
                 })
