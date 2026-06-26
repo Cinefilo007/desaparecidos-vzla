@@ -122,4 +122,7 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Expuestos los endpoints `GET/POST /api/fuentes` y `GET/POST /api/hospitales/ingresos` in `api/main.py` para administración programática.
 - **2026-06-25 (Solución Definitiva de Base de Datos e Integración de Migraciones)**:
   - Modificado `database/crud.py` para integrar la lógica de migración en caliente (`ALTER TABLE personas ADD COLUMN IF NOT EXISTS ...`) directamente en `init_db()`. Esto garantiza que los campos `foto_rostro_local_path` y `foto_rostro_url` se verifiquen y creen automáticamente en PostgreSQL de producción al iniciar cualquier servicio (bot, API, worker), previniendo de raíz el error `UndefinedColumnError` y eliminando fallas de arranque que inducen a colisiones de polling de Telegram en despliegues concurrentes de Railway.
+- **2026-06-25 (Solución a Error de Truncamiento de Cadenas en PostgreSQL)**:
+  - Modificado `database/models.py` para ampliar la longitud de las columnas `cedula`, `fecha_nacimiento`, `genero`, `fecha_desaparicion`, `hora_desaparicion` y `contacto_telefono` a `String(100)`.
+  - Actualizada la función `init_db()` en `database/crud.py` para ejecutar sentencias `ALTER COLUMN TYPE VARCHAR(100)` en PostgreSQL de producción, previniendo errores de tipo `StringDataRightTruncationError` debido a la inserción de números telefónicos largos o descripciones de fechas y horas extraídas por la IA de Gemini.
 
