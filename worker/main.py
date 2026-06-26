@@ -52,6 +52,8 @@ class Worker:
     async def iniciar(self):
         await self.conectar()
         await init_db()
+        logger.info("Esperando 15 segundos a que finalice el despliegue de Railway antes de arrancar...")
+        await asyncio.sleep(15)
         logger.info("Bucle de escucha de cola de tareas iniciado en Redis (BLPOP)...")
 
         try:
