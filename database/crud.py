@@ -171,7 +171,7 @@ async def listar_hospitales_refugios() -> Dict[str, List[dict]]:
                 "nombre": p.nombre_completo(),
                 "edad": p.edad,
                 "cedula": p.cedula,
-                "foto_url": p.foto_url(),
+                "foto_url": p.foto_url,
                 "estado": p.estado.value if p.estado else None
             })
             
