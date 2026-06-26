@@ -94,6 +94,9 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
 - **2026-06-25 (Corrección del Bucle de Eventos del Bot)**: Solución de colisión en asyncio.
   - Modificado `bot/main.py` para reescribir `main()` como una función sincrónica y llamar a `app.run_polling()` de forma bloqueante.
   - Implementado `post_init` para gestionar asíncronamente la configuración de comandos de Telegram (`configurar_comandos`), solucionando la excepción `RuntimeError: This event loop is already running`.
+- **2026-06-25 (Corrección de Event Loop en MainThread)**: Bucle de eventos explícito para el bot.
+  - Modificado `bot/main.py` para crear e instalar un bucle de eventos nuevo (`asyncio.new_event_loop()`, `asyncio.set_event_loop()`) antes de instanciar la aplicación. Esto corrige el error `RuntimeError: There is no current event loop in thread 'MainThread'` debido a que el bucle de eventos temporal utilizado para inicializar la base de datos se destruía antes de iniciar el polling.
+
 
 
 

@@ -109,6 +109,10 @@ def main():
     asyncio.run(init_db())
     logger.info("Base de datos inicializada ✓")
 
+    # Crear y establecer un event loop nuevo para este hilo principal
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     # Construir aplicación
     app = (
         Application.builder()
