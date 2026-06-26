@@ -86,12 +86,15 @@ def kb_saltar_campo() -> InlineKeyboardMarkup:
 
 # ── Menú Persistente de Botones ────────────────────────────────────────
 
-def kb_menu_persistente(miniapp_url: str) -> ReplyKeyboardMarkup:
+def kb_menu_persistente(miniapp_url: str, es_admin: bool = False) -> ReplyKeyboardMarkup:
+    botones = [
+        [KeyboardButton("📝 Registrar Persona"), KeyboardButton("🔍 Buscar Persona")],
+        [KeyboardButton("🌐 Abrir Panel Web", web_app={"url": miniapp_url}), KeyboardButton("📊 Estadísticas")]
+    ]
+    if es_admin:
+        botones.append([KeyboardButton("⚙️ Panel Administrar")])
     return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("📝 Registrar Persona"), KeyboardButton("🔍 Buscar Persona")],
-            [KeyboardButton("🌐 Abrir Panel Web", web_app={"url": miniapp_url}), KeyboardButton("📊 Estadísticas")]
-        ],
+        botones,
         resize_keyboard=True,
         is_persistent=True
     )

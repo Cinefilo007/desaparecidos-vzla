@@ -185,6 +185,103 @@ async def mapa_personas(estado: Optional[str] = None):
     return puntos
 
 
+# ── Fuentes de Scraping ────────────────────────────────────────────────
+
+@app.get("/api/fuentes")
+async def listar_fuentes(solo_activas: bool = True):
+    from database.crud import listar_fuentes_scraping
+    fuentes = await listar_fuentes_scraping(solo_activas=solo_activas)
+    return [
+        {
+            "id": f.id,
+            "nombre": f.nombre,
+            "url": f.url,
+            "tipo": f.tipo,
+            "activa": f.activa
+        }
+        for f in fuentes
+    ]
+
+
+@app.post("/api/fuentes", status_code=201)
+async def agregar_fuente(body: dict):
+    nombre = body.get("nombre")
+    url = body.get("url")
+    tipo = body.get("tipo", "web")
+    
+    if not nombre or not url:
+        raise HTTPException(400, "Nombre y URL son obligatorios")
+        
+    from database.crud import crear_fuente_scraping
+    fuente = await crear_fuente_scraping(nombre=nombre, url=url, tipo=tipo)
+    return {
+        "id": fuente.id,
+        "nombre": fuente.nombre,
+        "url": fuente.url,
+        "tipo": fuente.tipo
+    }
+
+
+# ── Ingresos en Hospitales ─────────────────────────────────────────────
+
+@app.get("/api/hospitales/ingresos")
+async def listar_ingresos(limite: int = 100):
+    from database.crud import listar_ingresos_hospitales
+    ingresos = await listar_ingresos_hospitales(limite=limite)
+    return [
+        {
+            "id": i.id,
+            "nombre_completo": i.nombre_completo,
+            "edad": i.edad,
+            "hospital_nombre": i.hospital_nombre,
+            "fecha_ingreso": i.fecha_ingreso,
+            "detalles_ingreso": i.detalles_ingreso,
+            "persona_id_vinculada": i.persona_id_vinculada,
+            "creado_en": i.creado_en.isoformat() if i.creado_en else None
+        }
+        for i in ingresos
+    ]
+
+
+@app.post("/api/hospitales/ingresos", status_code=201)
+async def registrar_ingreso(body: dict):
+    nombre = body.get("nombre_completo")
+    hospital = body.get("hospital_nombre")
+    
+    if not nombre or not hospital:
+        raise HTTPException(400, "nombre_completo y hospital_nombre son obligatorios")
+        
+    from database.crud import registrar_ingreso_hospital
+    ingreso = await registrar_ingreso_hospital(body)
+    
+    # Intentar enviar alerta al familiar si se vinculó una persona desaparecida
+    if ingreso.persona_id_vinculada:
+        from database.crud import get_persona
+        from telegram import Bot
+        persona = await get_persona(ingreso.persona_id_vinculada)
+        if persona and persona.contacto_chat_id:
+            bot = Bot(token=settings.telegram_bot_token)
+            msg_familiar = (
+                f"🚨 *¡NOTIFICACIÓN URGENTE DE HOSPITAL!* 🚨\n\n"
+                f"El sistema ha detectado una coincidencia en un hospital para tu familiar:\n"
+                f"👤 *Nombre:* {persona.nombre_completo()}\n"
+                f"🏥 *Ubicación:* {ingreso.hospital_nombre}\n"
+                f"📋 *Reporte Médico:* {ingreso.detalles_ingreso}\n"
+                f"📅 *Fecha:* {ingreso.fecha_ingreso}\n\n"
+                f"Por favor, ponte en contacto con este hospital para verificar. ¡Esperamos que todo esté bien! 🙏"
+            )
+            try:
+                await bot.send_message(chat_id=persona.contacto_chat_id, text=msg_familiar, parse_mode="Markdown")
+            except Exception as err:
+                logger.error(f"Error notificando al familiar desde API: {err}")
+
+    return {
+        "id": ingreso.id,
+        "nombre_completo": ingreso.nombre_completo,
+        "persona_id_vinculada": ingreso.persona_id_vinculada
+    }
+
+
 # ── Helpers ────────────────────────────────────────────────────────────
 
 def _persona_to_dict(p) -> dict:

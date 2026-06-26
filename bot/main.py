@@ -15,6 +15,7 @@ from database.crud import init_db, get_estadisticas
 from bot.keyboards import kb_menu_principal, kb_abrir_miniapp, kb_menu_persistente
 from bot.handlers.registro import get_registro_handler
 from bot.handlers.busqueda import get_busqueda_handler, get_misc_handlers, mostrar_stats
+from bot.handlers.admin import get_admin_handler, es_administrador
 
 
 # ── Comando /start ─────────────────────────────────────────────────────
@@ -22,6 +23,8 @@ from bot.handlers.busqueda import get_busqueda_handler, get_misc_handlers, mostr
 async def cmd_start(update: Update, ctx):
     stats = await get_estadisticas()
     nombre_usuario = update.effective_user.first_name or "amigo/a"
+    chat_id = str(update.effective_chat.id)
+    es_admin = es_administrador(chat_id)
 
     await update.message.reply_text(
         f"🇻🇪 *Desaparecidos — Terremoto Venezuela 2026*\n\n"
@@ -32,7 +35,7 @@ async def cmd_start(update: Update, ctx):
         f"  ✅ Localizadas:  *{stats['localizados']}* personas\n\n"
         f"¿Qué deseas hacer?",
         parse_mode="Markdown",
-        reply_markup=kb_menu_persistente(settings.miniapp_url),
+        reply_markup=kb_menu_persistente(settings.miniapp_url, es_admin=es_admin),
     )
 
 
@@ -115,6 +118,7 @@ async def main():
     # Registrar handlers en orden (los ConversationHandlers primero)
     app.add_handler(get_registro_handler())
     app.add_handler(get_busqueda_handler())
+    app.add_handler(get_admin_handler())
 
     # Comandos simples
     app.add_handler(CommandHandler("start",     cmd_start))

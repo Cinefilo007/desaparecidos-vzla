@@ -113,3 +113,10 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Agregadas las capacidades de recorte de rostros con Pillow y comparación facial comparativa con Gemini 2.5 Flash en `ai/image_processor.py`.
   - Integrado el flujo de suscripción en el Bot de Telegram (`bot/handlers/busqueda.py`) con los botones dinámicos en `bot/keyboards.py`.
   - Mejorada la lógica de sugerencia de registro para búsquedas sin resultados, guiando de inmediato al usuario al flujo de registro de desaparecidos.
+- **2026-06-25 (Solución de Base de Datos y Panel de Control de Admin)**: Reactivación de producción y gestión interactiva.
+  - Implementado el script de migración en caliente en `database/migrate.py` para inyectar las columnas `foto_rostro_local_path` y `foto_rostro_url` a la tabla `personas` en PostgreSQL, solucionando el error ProgrammingError y el bloqueo en Railway.
+  - Modificado `railway.toml` para que el despliegue ejecute la migración al inicio del contenedor unificado.
+  - Creado el panel administrativo en `bot/handlers/admin.py` protegido por `ADMIN_CHAT_ID` con menús inline interactivos para añadir fuentes de scraping y cargar listas de ingresos hospitalarios de texto.
+  - Implementada la notificación automática por Telegram al familiar si un ingreso hospitalario coincide fonéticamente con una persona en estado de búsqueda.
+  - Actualizado `bot/keyboards.py` para inyectar dinámicamente el botón "⚙️ Panel Administrar" en el teclado persistente del chat solo si el usuario es administrador.
+  - Expuestos los endpoints `GET/POST /api/fuentes` y `GET/POST /api/hospitales/ingresos` en `api/main.py` para administración programática.
