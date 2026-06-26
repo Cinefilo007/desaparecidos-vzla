@@ -22,7 +22,8 @@ from bot.keyboards import kb_cancelar
     ESPERANDO_URL_FUENTE,
     ESPERANDO_NOMBRE_FUENTE,
     ESPERANDO_LISTA_HOSPITAL,
-) = range(100, 105)
+    ESPERANDO_FOTO_ENCONTRADOS,
+) = range(100, 106)
 
 
 def es_administrador(chat_id: str) -> bool:
@@ -56,12 +57,13 @@ async def enviar_menu_principal(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
     texto = (
         "⚙️ *Panel de Control Administrativo*\n\n"
         "Desde aquí puedes gestionar las fuentes de scraping en internet e ingresar "
-        "listados de reportes médicos de hospitales."
+        "listados de reportes médicos de hospitales o fotos de listas de encontrados."
     )
     
     teclado = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Agregar Fuente Scraping", callback_data="admin_add_source")],
         [InlineKeyboardButton("🏥 Cargar Ingresos Hospital",  callback_data="admin_load_hospital")],
+        [InlineKeyboardButton("📸 Subir Foto de Encontrados", callback_data="admin_upload_photo")],
         [InlineKeyboardButton("📋 Listar Fuentes Activas",    callback_data="admin_list_sources")],
         [InlineKeyboardButton("❌ Cerrar Panel",              callback_data="admin_close_panel")]
     ])
@@ -299,6 +301,79 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     return MENU_ADMIN
 
 
+# ── Subir Foto de Encontrados ──────────────────────────────────────────
+
+async def cb_subir_foto_encontrados(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    texto = (
+        "📸 *Subir Foto de Listado de Encontrados*\n\n"
+        "Envía una foto de una lista de personas encontradas (ej. la pizarra de un refugio). "
+        "Asegúrate de incluir la *ubicación del hallazgo en la descripción* de la foto.\n\n"
+        "La IA extraerá todos los nombres, los marcará como LOCALIZADOS y notificará a sus familiares automáticamente."
+    )
+    teclado = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Atrás", callback_data="admin_volver")]])
+    await query.message.edit_text(texto, parse_mode="Markdown", reply_markup=teclado)
+    return ESPERANDO_FOTO_ENCONTRADOS
+
+
+async def recibir_foto_encontrados(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    msg = update.message
+    if not msg.photo:
+        await msg.reply_text("⚠️ Por favor envía una imagen. Intenta de nuevo o cancela con /cancelar.")
+        return ESPERANDO_FOTO_ENCONTRADOS
+
+    ubicacion = msg.caption or "Ubicación reportada por administrador (sin detalles)"
+    await msg.reply_text("⏳ Analizando el listado con IA... (esto puede tardar unos segundos)")
+
+    # Descargar foto
+    import uuid
+    from pathlib import Path
+    foto = msg.photo[-1]
+    file = await ctx.bot.get_file(foto.file_id)
+    FOTOS_DIR = Path("fotos_temp")
+    FOTOS_DIR.mkdir(exist_ok=True)
+    ruta = FOTOS_DIR / f"listado_{uuid.uuid4()}.jpg"
+    await file.download_to_drive(str(ruta))
+
+    # Analizar con IA
+    from ai.image_processor import procesador_imagenes
+    lista_datos = await procesador_imagenes.extraer_datos(str(ruta))
+
+    if not lista_datos or (len(lista_datos) == 1 and not lista_datos[0].nombre):
+        await msg.reply_text("❌ No pude extraer nombres de esta imagen. Asegúrate de que el texto sea legible.")
+        await enviar_menu_principal(update, ctx)
+        return MENU_ADMIN
+
+    # Registrar
+    from database.crud import crear_persona
+    from database.models import EstadoPersona, Prioridad, FuenteRegistro
+
+    registrados = 0
+    for d in lista_datos:
+        if d.nombre:
+            persona_dict = d.to_persona_dict()
+            persona_dict.update({
+                "estado": EstadoPersona.LOCALIZADO,
+                "ultima_ubicacion": ubicacion,
+                "fuente_registro": FuenteRegistro.TELEGRAM,
+                "prioridad": Prioridad.BAJA,
+            })
+            await crear_persona(persona_dict)
+            registrados += 1
+
+    await msg.reply_text(
+        f"✅ *Listado procesado con éxito*\n\n"
+        f"Se han registrado *{registrados}* personas como LOCALIZADAS en:\n_{ubicacion}_\n\n"
+        f"Las alertas a los familiares suscritos se enviarán en segundo plano.",
+        parse_mode="Markdown"
+    )
+    
+    await enviar_menu_principal(update, ctx)
+    return MENU_ADMIN
+
+
 # ── Cancelación y Retorno ──────────────────────────────────────────────
 
 async def cb_volver_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
@@ -342,6 +417,7 @@ def get_admin_handler() -> ConversationHandler:
             MENU_ADMIN: [
                 CallbackQueryHandler(cb_agregar_fuente,      pattern="^admin_add_source$"),
                 CallbackQueryHandler(cb_cargar_hospital,     pattern="^admin_load_hospital$"),
+                CallbackQueryHandler(cb_subir_foto_encontrados, pattern="^admin_upload_photo$"),
                 CallbackQueryHandler(cb_listar_fuentes,      pattern="^admin_list_sources$"),
                 CallbackQueryHandler(cb_cerrar_panel,        pattern="^admin_close_panel$"),
             ],
@@ -361,6 +437,11 @@ def get_admin_handler() -> ConversationHandler:
             ],
             ESPERANDO_LISTA_HOSPITAL: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_lista_hospital),
+                CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
+                CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
+            ],
+            ESPERANDO_FOTO_ENCONTRADOS: [
+                MessageHandler(filters.PHOTO, recibir_foto_encontrados),
                 CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ]

@@ -141,16 +141,87 @@ class Worker:
             logger.error(f"[Scraper] Error en scrape_telegram de {canal}: {e}")
 
     async def handler_scrape_redes(self, tipo: str, datos: Dict[str, Any]):
-        """Procesa y simula la búsqueda de hashtags o videos en redes sociales sin APIs oficiales pesadas."""
+        """Scraping real de redes sociales: Nitter (Twitter) + Google Search como fallback."""
         plataforma = datos.get("plataforma", "redes")
         clave = datos.get("hashtag") or datos.get("keyword") or datos.get("url", "")
-        logger.info(f"[Scraper] Procesando red social ({tipo}): {clave}")
-        
-        # En producción sin APIs oficiales de Twitter/TikTok, hacemos una simulación de búsqueda 
-        # en motores de búsqueda públicos o mediante scraping simulado usando Gemini para generar avistamientos realistas
-        # si hay texto relevante. Para fines reales, pasamos un feed simulado.
-        texto_simulado = f"Reportan avistamiento de personas en la zona afectada. Vecinos indican haber visto a un señor de la tercera edad desorientado respondiendo al nombre de Ramón Ortega por la Av. Bolívar. #DesaparecidosVenezuela #Rescate"
-        await self._contrastar_texto_con_desaparecidos(texto_simulado, f"https://x.com/search?q={clave}", plataforma)
+        logger.info(f"[Scraper] Scrapeando red social ({tipo}): {clave}")
+
+        textos_encontrados = []
+
+        # ── Estrategia 1: Nitter (mirror público de Twitter/X) ──
+        nitter_instances = [
+            "nitter.poast.org",
+            "nitter.privacydev.net",
+            "nitter.net",
+        ]
+        query_encoded = clave.replace("#", "%23").replace(" ", "+")
+
+        for instance in nitter_instances:
+            url_nitter = f"https://{instance}/search?f=tweets&q={query_encoded}"
+            try:
+                response = await self.client.get(url_nitter, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                })
+                if response.status_code == 200:
+                    # Extraer tweets del HTML de Nitter
+                    tweets = []
+                    for match in re.finditer(
+                        r'<div class="tweet-content[^"]*"[^>]*>(.*?)</div>',
+                        response.text, re.DOTALL
+                    ):
+                        tweet_text = self._limpiar_html(match.group(1))
+                        if len(tweet_text) > 20:
+                            tweets.append(tweet_text)
+
+                    if tweets:
+                        textos_encontrados.append({
+                            "texto": "\n\n--- TWEET ---\n\n".join(tweets[:15]),
+                            "url": url_nitter,
+                            "plataforma": "twitter_nitter"
+                        })
+                        logger.info(f"[Scraper] {len(tweets)} tweets extraídos de {instance}")
+                        break  # Ya tenemos datos, no probar más instancias
+                    else:
+                        logger.debug(f"[Scraper] Nitter {instance}: sin tweets relevantes")
+                else:
+                    logger.debug(f"[Scraper] Nitter {instance}: HTTP {response.status_code}")
+            except Exception as e:
+                logger.debug(f"[Scraper] Nitter {instance} falló: {e}")
+                continue
+
+        # ── Estrategia 2: Google Search (fallback siempre se ejecuta para complementar) ──
+        google_queries = [
+            f"site:twitter.com {clave} desaparecido Venezuela",
+            f"{clave} desaparecido terremoto Venezuela 2026",
+        ]
+        for gq in google_queries:
+            url_google = f"https://www.google.com/search?q={gq.replace(' ', '+')}&num=10"
+            try:
+                response = await self.client.get(url_google, headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept-Language": "es-VE,es;q=0.9"
+                })
+                if response.status_code == 200:
+                    texto_limpio = self._limpiar_html(response.text)
+                    if len(texto_limpio) > 100:
+                        textos_encontrados.append({
+                            "texto": texto_limpio[:6000],
+                            "url": url_google,
+                            "plataforma": "google_search"
+                        })
+                        logger.info(f"[Scraper] Resultados de Google obtenidos para: {gq[:50]}")
+            except Exception as e:
+                logger.debug(f"[Scraper] Google Search falló: {e}")
+
+        # ── Procesar todos los textos encontrados ──
+        if not textos_encontrados:
+            logger.warning(f"[Scraper] Sin resultados para '{clave}' en ninguna fuente de redes")
+            return
+
+        for resultado in textos_encontrados:
+            await self._contrastar_texto_con_desaparecidos(
+                resultado["texto"], resultado["url"], resultado["plataforma"]
+            )
 
     # ── Análisis y contraste con Gemini 2.5 Flash ─────────────────────
 

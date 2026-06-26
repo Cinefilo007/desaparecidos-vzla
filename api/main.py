@@ -94,6 +94,39 @@ async def get_logs(lines: int = 50):
         return {"logs": [f"Error al leer logs: {e}"]}
 
 
+@app.get("/api/scraper-status")
+async def scraper_status():
+    """Estado real del scraper. Lee de Redis si está disponible, o genera datos de las fuentes en BD."""
+    try:
+        fuentes = await listar_fuentes_scraping()
+        fuentes_activas = [
+            {"nombre": f.nombre, "tipo": f.tipo, "url": f.url}
+            for f in fuentes if f.activa
+        ]
+    except Exception:
+        fuentes_activas = []
+
+    # Intentar leer estado del scheduler desde Redis
+    estado_scheduler = None
+    try:
+        import redis.asyncio as aioredis
+        r = await aioredis.from_url(settings.redis_url, decode_responses=True)
+        raw = await r.get("scheduler:estado")
+        await r.close()
+        if raw:
+            import json as _json
+            estado_scheduler = _json.loads(raw)
+    except Exception:
+        pass
+
+    return {
+        "activo": True,
+        "fuentes_activas": len(fuentes_activas),
+        "fuentes": fuentes_activas,
+        "scheduler": estado_scheduler,
+    }
+
+
 # ── Personas ───────────────────────────────────────────────────────────
 
 @app.get("/api/personas")

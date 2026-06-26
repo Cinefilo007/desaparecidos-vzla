@@ -68,18 +68,48 @@ async def recibir_foto(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     ruta = FOTOS_DIR / f"{uuid.uuid4()}.jpg"
     await file.download_to_drive(str(ruta))
 
-    # Extraer datos con Gemini Vision
-    datos = await procesador_imagenes.extraer_datos(str(ruta))
+    # Extraer datos con Gemini Vision (ahora retorna una lista)
+    lista_datos = await procesador_imagenes.extraer_datos(str(ruta))
 
-    # Guardar en el contexto de la conversación
-    ctx.user_data["datos"]    = datos
+    if not lista_datos:
+        # Fallback si falla por completo
+        from ai.image_processor import DatosExtraidos
+        lista_datos = [DatosExtraidos()]
+        lista_datos[0].campos_faltantes = procesador_imagenes._calcular_faltantes(lista_datos[0])
+
+    ctx.user_data["lista_datos"] = lista_datos
     ctx.user_data["foto_path"] = str(ruta)
-    ctx.user_data["chat_id"]  = str(msg.chat_id)
+    ctx.user_data["chat_id"] = str(msg.chat_id)
+
+    # Iniciar flujo con la primera persona
+    return await _iniciar_registro_persona(update, ctx)
+
+
+async def _iniciar_registro_persona(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
+    """Inicia el registro de la persona actual en la cola."""
+    lista_datos = ctx.user_data.get("lista_datos", [])
+    if not lista_datos:
+        return ConversationHandler.END
+
+    datos = lista_datos[0]
+    ctx.user_data["datos"] = datos
+    
+    total = len(lista_datos)
+    total_original = ctx.user_data.get("total_personas", total)
+    if "total_personas" not in ctx.user_data:
+        ctx.user_data["total_personas"] = total
+        
+    actual = total_original - total + 1
+
+    msg = update.message if update.message else update.callback_query.message
+
+    if total_original > 1:
+        await msg.reply_text(f"👥 *Registrando persona {actual} de {total_original}*", parse_mode="Markdown")
 
     # Si no se extrajo nada útil, pedir nombre directamente
     if not datos.nombre_completo() and not datos.tiene_cara_visible:
         await msg.reply_text(
-            "📸 Guardé la foto pero no pude leer texto en ella.\n"
+            "📸 Guardé la foto pero no pude leer texto para esta persona.\n"
             "Empecemos con lo básico:\n\n"
             "¿Cuál es el *nombre completo* de la persona que buscas?",
             parse_mode="Markdown",
@@ -336,9 +366,19 @@ async def _registrar_y_finalizar(
 
     logger.info(f"Persona registrada: #{persona.id} — {nombre} (prioridad={prioridad})")
 
-    # Limpiar sesión
-    ctx.user_data.clear()
-    return ConversationHandler.END
+    # Verificar si hay más personas en la lista
+    lista_datos = ctx.user_data.get("lista_datos", [])
+    if lista_datos:
+        lista_datos.pop(0)  # Eliminar la persona que acabamos de registrar
+        
+    if lista_datos:
+        # Hay más personas en la lista, registrar a la siguiente
+        await send("🔄 Procesando a la siguiente persona detectada en la foto...")
+        return await _iniciar_registro_persona(update, ctx)
+    else:
+        # Limpiar sesión solo si ya registramos a todos
+        ctx.user_data.clear()
+        return ConversationHandler.END
 
 
 def kb_abrir_miniapp_reg(persona_id: int):

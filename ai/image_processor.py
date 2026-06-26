@@ -20,42 +20,48 @@ genai.configure(api_key=settings.gemini_api_key)
 
 PROMPT_EXTRACCION = """
 Analiza esta imagen. Puede ser una ficha "SE BUSCA", captura de WhatsApp,
-foto con notas manuscritas, o simplemente una foto de una persona.
+foto con notas manuscritas, un listado de personas o simplemente una foto de una persona.
+Puede contener UNA o MÁS personas.
 
 Extrae TODA la información visible y responde ÚNICAMENTE con JSON válido:
 
 {
-  "tipo_imagen": "ficha_se_busca|captura_whatsapp|foto_con_notas|foto_sola|recorte_noticia|desconocido",
-  "tiene_cara_visible": true/false,
-  "caja_delimitadora_rostro": [ymin, xmin, ymax, xmax] o null,
-  "nombre": "nombre de pila o null",
-  "apellidos": "apellidos completos o null",
-  "cedula": "solo dígitos sin V- ni puntos, o null",
-  "edad": número entero o null,
-  "ultima_ubicacion": "lugar exacto donde fue visto por última vez o null",
-  "zona": "ciudad o municipio principal o null",
-  "fecha_desaparicion": "DD/MM/AAAA o null",
-  "hora_desaparicion": "HH:MM o null",
-  "descripcion_fisica": "altura, complexión, cabello, color de ojos, etc. o null",
-  "ropa_ultima_vez": "descripción detallada de ropa o null",
-  "senas_particulares": "cicatrices, tatuajes, lunares, usa lentes, etc. o null",
-  "condicion_medica": "diabetes, hipertensión, embarazo, discapacidad, etc. o null",
-  "es_vulnerable": true/false,
-  "razon_vulnerabilidad": "menor_edad|adulto_mayor|embarazada|condicion_medica|discapacidad o null",
-  "contacto_telefono": "número venezolano formato 04XX-XXX-XXXX o null",
-  "contacto_nombre": "nombre de quien busca o null",
+  "tipo_imagen": "ficha_se_busca|captura_whatsapp|foto_con_notas|foto_sola|recorte_noticia|listado|desconocido",
+  "personas": [
+    {
+      "tiene_cara_visible": true/false,
+      "caja_delimitadora_rostro": [ymin, xmin, ymax, xmax] o null,
+      "nombre": "nombre de pila o null",
+      "apellidos": "apellidos completos o null",
+      "cedula": "solo dígitos sin V- ni puntos, o null",
+      "edad": número entero o null,
+      "ultima_ubicacion": "lugar exacto donde fue visto por última vez o null",
+      "zona": "ciudad o municipio principal o null",
+      "fecha_desaparicion": "DD/MM/AAAA o null",
+      "hora_desaparicion": "HH:MM o null",
+      "descripcion_fisica": "altura, complexión, cabello, color de ojos, etc. o null",
+      "ropa_ultima_vez": "descripción detallada de ropa o null",
+      "senas_particulares": "cicatrices, tatuajes, lunares, usa lentes, etc. o null",
+      "condicion_medica": "diabetes, hipertensión, embarazo, discapacidad, etc. o null",
+      "es_vulnerable": true/false,
+      "razon_vulnerabilidad": "menor_edad|adulto_mayor|embarazada|condicion_medica|discapacidad o null",
+      "contacto_telefono": "número venezolano formato 04XX-XXX-XXXX o null",
+      "contacto_nombre": "nombre de quien busca o null"
+    }
+  ],
   "texto_completo": "TODO el texto visible en la imagen",
   "confianza": 0.0 a 1.0,
   "notas": "cualquier información relevante adicional o null"
 }
 
 Reglas importantes:
-- Si el texto es manuscrito, intenta leerlo aunque sea difícil
-- Marca es_vulnerable=true si: menor de 15 años, mayor de 65, embarazada, condición médica grave
-- Para cédulas venezolanas: extrae SOLO los números (ej: "V-12.345.678" → "12345678")
-- Si la imagen es solo una foto sin texto, devuelve null en todos los campos de texto
-- Para "caja_delimitadora_rostro": si "tiene_cara_visible" es verdadero, devuelve la caja delimitadora del rostro principal como una lista de cuatro enteros [ymin, xmin, ymax, xmax] normalizados de 0 a 1000 con respecto al alto y ancho de la imagen (donde [0, 0, 1000, 1000] representa la imagen completa). Si no es visible, devuelve null.
-- El campo confianza refleja qué tan legible/completa es la información (0=ilegible, 1=perfecta)
+- Extrae a CADA persona que se mencione o se muestre de forma clara. Si hay 3 personas en la ficha, el array "personas" debe tener 3 elementos.
+- Si el texto es manuscrito, intenta leerlo aunque sea difícil.
+- Marca es_vulnerable=true si: menor de 15 años, mayor de 65, embarazada, condición médica grave.
+- Para cédulas venezolanas: extrae SOLO los números (ej: "V-12.345.678" → "12345678").
+- Si la imagen es solo una foto sin texto, devuelve null en todos los campos de texto.
+- Para "caja_delimitadora_rostro": si "tiene_cara_visible" es verdadero, devuelve la caja delimitadora del rostro de ESA persona como una lista de cuatro enteros [ymin, xmin, ymax, xmax] normalizados de 0 a 1000 con respecto al alto y ancho de la imagen (donde [0, 0, 1000, 1000] representa la imagen completa). Si no es visible, devuelve null.
+- El campo confianza refleja qué tan legible/completa es la información (0=ilegible, 1=perfecta).
 """
 
 
@@ -130,10 +136,10 @@ class ProcesadorImagenes:
     def __init__(self):
         self.model = genai.GenerativeModel(settings.gemini_model)
 
-    async def extraer_datos(self, ruta_imagen: str) -> DatosExtraidos:
+    async def extraer_datos(self, ruta_imagen: str) -> list[DatosExtraidos]:
         """
         Extrae todos los datos posibles de una imagen usando Gemini Vision.
-        Soporta: fichas SE BUSCA, capturas WhatsApp, fotos con texto, fotos solas.
+        Retorna una lista de DatosExtraidos (uno por cada persona detectada).
         """
         try:
             img = Image.open(ruta_imagen)
@@ -142,38 +148,45 @@ class ProcesadorImagenes:
             response = await self.model.generate_content_async([img, PROMPT_EXTRACCION])
             datos_raw = self._parsear_json(response.text)
 
-            datos = DatosExtraidos(
-                nombre=datos_raw.get("nombre"),
-                apellidos=datos_raw.get("apellidos"),
-                cedula=self._limpiar_cedula(datos_raw.get("cedula")),
-                edad=datos_raw.get("edad"),
-                ultima_ubicacion=datos_raw.get("ultima_ubicacion"),
-                zona=datos_raw.get("zona"),
-                fecha_desaparicion=datos_raw.get("fecha_desaparicion"),
-                hora_desaparicion=datos_raw.get("hora_desaparicion"),
-                descripcion_fisica=datos_raw.get("descripcion_fisica"),
-                ropa_ultima_vez=datos_raw.get("ropa_ultima_vez"),
-                senas_particulares=datos_raw.get("senas_particulares"),
-                condicion_medica=datos_raw.get("condicion_medica"),
-                es_vulnerable=datos_raw.get("es_vulnerable", False),
-                razon_vulnerabilidad=datos_raw.get("razon_vulnerabilidad"),
-                contacto_telefono=datos_raw.get("contacto_telefono"),
-                contacto_nombre=datos_raw.get("contacto_nombre"),
-                tiene_cara_visible=datos_raw.get("tiene_cara_visible", False),
-                caja_delimitadora_rostro=datos_raw.get("caja_delimitadora_rostro"),
-                tipo_imagen=datos_raw.get("tipo_imagen", "desconocido"),
-                confianza=float(datos_raw.get("confianza", 0.5)),
-                notas=datos_raw.get("notas"),
-            )
-            datos.campos_faltantes = self._calcular_faltantes(datos)
-            logger.info(f"Imagen analizada: tipo={datos.tipo_imagen}, confianza={datos.confianza:.2f}")
-            return datos
+            personas_raw = datos_raw.get("personas", [])
+            # Compatibilidad hacia atrás o si Gemini falla en usar el nuevo formato
+            if not personas_raw and any(k in datos_raw for k in ["nombre", "apellidos", "cedula", "ropa_ultima_vez"]):
+                personas_raw = [datos_raw]
+
+            resultados = []
+            for p_raw in personas_raw:
+                datos = DatosExtraidos(
+                    nombre=p_raw.get("nombre"),
+                    apellidos=p_raw.get("apellidos"),
+                    cedula=self._limpiar_cedula(p_raw.get("cedula")),
+                    edad=p_raw.get("edad"),
+                    ultima_ubicacion=p_raw.get("ultima_ubicacion"),
+                    zona=p_raw.get("zona"),
+                    fecha_desaparicion=p_raw.get("fecha_desaparicion"),
+                    hora_desaparicion=p_raw.get("hora_desaparicion"),
+                    descripcion_fisica=p_raw.get("descripcion_fisica"),
+                    ropa_ultima_vez=p_raw.get("ropa_ultima_vez"),
+                    senas_particulares=p_raw.get("senas_particulares"),
+                    condicion_medica=p_raw.get("condicion_medica"),
+                    es_vulnerable=p_raw.get("es_vulnerable", False),
+                    razon_vulnerabilidad=p_raw.get("razon_vulnerabilidad"),
+                    contacto_telefono=p_raw.get("contacto_telefono"),
+                    contacto_nombre=p_raw.get("contacto_nombre"),
+                    tiene_cara_visible=p_raw.get("tiene_cara_visible", False),
+                    caja_delimitadora_rostro=p_raw.get("caja_delimitadora_rostro"),
+                    tipo_imagen=datos_raw.get("tipo_imagen", "desconocido"),
+                    confianza=float(datos_raw.get("confianza", 0.5)),
+                    notas=datos_raw.get("notas"),
+                )
+                datos.campos_faltantes = self._calcular_faltantes(datos)
+                resultados.append(datos)
+                
+            logger.info(f"Imagen analizada: {len(resultados)} personas detectadas. Tipo={datos_raw.get('tipo_imagen')}")
+            return resultados
 
         except Exception as e:
             logger.error(f"Error analizando imagen: {e}")
-            datos = DatosExtraidos()
-            datos.campos_faltantes = self._calcular_faltantes(datos)
-            return datos
+            return []
 
     def generar_resumen_telegram(self, datos: DatosExtraidos) -> str:
         """Genera el mensaje de confirmación con los datos detectados."""
