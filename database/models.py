@@ -45,18 +45,18 @@ class Persona(Base):
     # Datos de identidad
     nombre          = Column(String(150), nullable=False, index=True)
     apellidos       = Column(String(150), nullable=True)
-    cedula          = Column(String(20),  nullable=True, index=True)
+    cedula          = Column(String(100),  nullable=True, index=True)
     edad            = Column(Integer,     nullable=True)
-    fecha_nacimiento= Column(String(20),  nullable=True)
-    genero          = Column(String(20),  nullable=True)
+    fecha_nacimiento= Column(String(100),  nullable=True)
+    genero          = Column(String(100),  nullable=True)
     
     # Ubicación y tiempo
     ultima_ubicacion= Column(String(300), nullable=True)
     zona            = Column(String(100), nullable=True, index=True)
     lat             = Column(Float,       nullable=True)
     lng             = Column(Float,       nullable=True)
-    fecha_desaparicion = Column(String(30), nullable=True)
-    hora_desaparicion  = Column(String(10), nullable=True)
+    fecha_desaparicion = Column(String(100), nullable=True)
+    hora_desaparicion  = Column(String(100), nullable=True)
 
     # Descripción física
     descripcion_fisica = Column(Text, nullable=True)
@@ -80,7 +80,7 @@ class Persona(Base):
 
     # Contacto del familiar
     contacto_nombre   = Column(String(150), nullable=True)
-    contacto_telefono = Column(String(30),  nullable=True)
+    contacto_telefono = Column(String(100),  nullable=True)
     contacto_chat_id  = Column(String(50),  nullable=True)  # Telegram chat ID
 
     # Metadatos

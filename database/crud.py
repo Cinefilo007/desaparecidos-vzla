@@ -30,12 +30,21 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         
-        # Migraciones en caliente para columnas de rostro en la tabla 'personas'
+        # Migraciones en caliente para columnas de rostro y ampliación de campos VARCHAR
         try:
-            # Sintaxis PostgreSQL
+            # Sintaxis PostgreSQL - Crear nuevas columnas
             await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_local_path VARCHAR(500);"))
             await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_url VARCHAR(500);"))
-            logger.info("Migración en caliente (PostgreSQL): Columnas de rostro verificadas/añadidas ✓")
+            
+            # Sintaxis PostgreSQL - Ampliar longitud de columnas para evitar truncamientos
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN cedula TYPE VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN fecha_nacimiento TYPE VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN genero TYPE VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN fecha_desaparicion TYPE VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN hora_desaparicion TYPE VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE personas ALTER COLUMN contacto_telefono TYPE VARCHAR(100);"))
+            
+            logger.info("Migración en caliente (PostgreSQL): Columnas verificadas, añadidas y ampliadas a 100 caracteres ✓")
         except Exception as e:
             # Fallback para SQLite de desarrollo
             try:
@@ -43,7 +52,7 @@ async def init_db():
                 await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);"))
                 logger.info("Migración en caliente (SQLite): Columnas de rostro añadidas ✓")
             except Exception as e2:
-                logger.debug(f"Aviso de migración SQLite (columnas probablemente ya existentes): {e2}")
+                logger.debug(f"Aviso de migración SQLite: {e2}")
 
 
 # ── Context manager para sesiones ─────────────────────────────────────
