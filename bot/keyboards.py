@@ -1,7 +1,7 @@
 """
 bot/keyboards.py — Teclados y botones reutilizables del bot de Telegram.
 """
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 
 
 # ── Menú Principal ─────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ def kb_abrir_miniapp(miniapp_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(
             "🌐 Abrir Panel de Búsqueda",
-            web_app={"url": miniapp_url}
+            web_app=WebAppInfo(url=miniapp_url)
         )],
     ])
 
@@ -89,7 +89,7 @@ def kb_saltar_campo() -> InlineKeyboardMarkup:
 def kb_menu_persistente(miniapp_url: str, es_admin: bool = False) -> ReplyKeyboardMarkup:
     botones = [
         [KeyboardButton("📝 Registrar Persona"), KeyboardButton("🔍 Buscar Persona")],
-        [KeyboardButton("🌐 Abrir Panel Web", web_app={"url": miniapp_url}), KeyboardButton("📊 Estadísticas")]
+        [KeyboardButton("🌐 Abrir Panel Web", web_app=WebAppInfo(url=miniapp_url)), KeyboardButton("📊 Estadísticas")]
     ]
     if es_admin:
         botones.append([KeyboardButton("⚙️ Panel Administrar")])

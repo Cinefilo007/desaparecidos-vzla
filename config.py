@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     max_video_size_mb:       int   = 200
 
     # ── Mini App ────────────────────────────────────────────────────
-    miniapp_url:  str = "http://localhost:8000"
+    miniapp_url:  str = "https://localhost:8000"
     api_port:     int = 8000
 
     # ── Entorno ─────────────────────────────────────────────────────

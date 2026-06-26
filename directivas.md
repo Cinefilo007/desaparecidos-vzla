@@ -125,4 +125,8 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
 - **2026-06-25 (Solución a Error de Truncamiento de Cadenas en PostgreSQL)**:
   - Modificado `database/models.py` para ampliar la longitud de las columnas `cedula`, `fecha_nacimiento`, `genero`, `fecha_desaparicion`, `hora_desaparicion` y `contacto_telefono` a `String(100)`.
   - Actualizada la función `init_db()` en `database/crud.py` para ejecutar sentencias `ALTER COLUMN TYPE VARCHAR(100)` en PostgreSQL de producción, previniendo errores de tipo `StringDataRightTruncationError` debido a la inserción de números telefónicos largos o descripciones de fechas y horas extraídas por la IA de Gemini.
+- **2026-06-25 (Solución al Cuelgue del Bot al Finalizar Registro)**:
+  - Modificados [`bot/keyboards.py`](file:///c:/Users/Orasa/OneDrive/Escritorio/vzla/bot/keyboards.py) y [`bot/handlers/registro.py`](file:///c:/Users/Orasa/OneDrive/Escritorio/vzla/bot/handlers/registro.py) para utilizar objetos `WebAppInfo` en lugar de diccionarios planos `{"url": ...}` en las definiciones de botones de Telegram WebApp.
+  - Modificado el envío final de registro en `_registrar_y_finalizar` de `bot/handlers/registro.py` para usar `parse_mode="HTML"` y escape seguro con `html.escape()`, blindando al bot de caídas por caracteres de formato Markdown presentes en los nombres u otros campos de la persona.
+  - Actualizado el valor por defecto de `miniapp_url` en `config.py` a `https://localhost:8000` con protocolo seguro HTTPS.
 

@@ -280,20 +280,21 @@ async def _registrar_y_finalizar(
     if chat_id:
         await suscribir_a_persona(persona.id, chat_id)
         
-    nombre  = persona.nombre_completo()
+    import html
+    nombre  = html.escape(persona.nombre_completo())
 
     emoji_prioridad = "🚨" if datos.es_vulnerable else "✅"
     aviso_vulnerable = (
-        f"\n\n⚠️ *PRIORIDAD MÁXIMA* por: {datos.razon_vulnerabilidad}"
-        if datos.es_vulnerable else ""
+        f"\n\n⚠️ <b>PRIORIDAD MÁXIMA</b> por: {html.escape(datos.razon_vulnerabilidad)}"
+        if datos.es_vulnerable and datos.razon_vulnerabilidad else ""
     )
 
     await send(
-        f"{emoji_prioridad} *¡{nombre} fue registrado/a exitosamente!*\n\n"
-        f"🔔 Te notificaremos *inmediatamente* si encontramos coincidencias.\n"
-        f"📊 ID de seguimiento: `#VZ-{persona.id:04d}`"
+        f"{emoji_prioridad} <b>¡{nombre} fue registrado/a exitosamente!</b>\n\n"
+        f"🔔 Te notificaremos <b>inmediatamente</b> si encontramos coincidencias.\n"
+        f"📊 ID de seguimiento: <code>#VZ-{persona.id:04d}</code>"
         f"{aviso_vulnerable}",
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=kb_abrir_miniapp_reg(persona.id),
     )
 
@@ -305,11 +306,11 @@ async def _registrar_y_finalizar(
 
 
 def kb_abrir_miniapp_reg(persona_id: int):
-    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(
             "🌐 Ver en el panel web",
-            web_app={"url": f"{settings.miniapp_url}/?persona={persona_id}"}
+            web_app=WebAppInfo(url=f"{settings.miniapp_url}/?persona={persona_id}")
         )],
         [InlineKeyboardButton("🔍 Buscar otra persona", callback_data="menu_buscar")],
     ])
