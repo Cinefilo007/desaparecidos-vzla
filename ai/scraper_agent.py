@@ -73,22 +73,30 @@ Devuelve SOLO un JSON válido con el siguiente formato:
         """Flujo completo para una persona. Retorna estadísticas y posible match."""
         stats = {"sitios": 0, "busquedas": 0, "similitudes": 0}
         
+        logger.info(f"[ScraperAgent] Iniciando búsqueda para #{persona.id} - {persona.nombre_completo()}")
         consultas = await self.generar_consultas(persona)
         todos_resultados = []
+        
+        logger.info(f"[ScraperAgent] Consultas generadas para #{persona.id}: {consultas}")
         
         for query in consultas:
             try:
                 stats["busquedas"] += 1
+                logger.info(f"[ScraperAgent] Ejecutando DuckDuckGo search: '{query}'")
                 resultados = list(self.ddgs.text(query, max_results=3))
                 todos_resultados.extend(resultados)
                 stats["sitios"] += len(resultados)
+                logger.info(f"[ScraperAgent] Resultados encontrados para '{query}': {len(resultados)}")
             except Exception as e:
                 logger.error(f"[ScraperAgent] Error en DDG search para '{query}': {e}")
                 
         if not todos_resultados:
+            logger.warning(f"[ScraperAgent] No se obtuvieron resultados en web para #{persona.id}")
             return stats
             
+        logger.info(f"[ScraperAgent] Analizando {len(todos_resultados)} resultados con LLM para #{persona.id}")
         analisis = await self.analizar_resultados(persona, todos_resultados)
+        
         if analisis.get("match"):
             stats["similitudes"] = 1
             logger.info(f"[ScraperAgent] Match encontrado para #{persona.id} en URL: {analisis.get('url_relevante')}")

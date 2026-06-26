@@ -127,18 +127,6 @@ async def scraper_status():
         "scheduler": estado_scheduler,
     }
 
-@app.post("/api/scraper/forzar")
-async def forzar_scraper():
-    try:
-        import redis.asyncio as aioredis
-        import json
-        r = await aioredis.from_url(settings.redis_url)
-        await r.lpush("queue:p2", json.dumps({"tipo": "ejecutar_scraper_agentico", "datos": {}}))
-        await r.close()
-        return {"ok": True, "msg": "Búsqueda encolada"}
-    except Exception as e:
-        logger.error(f"Error forzando scraper: {e}")
-        return {"ok": False, "msg": str(e)}
 
 # ── Personas ───────────────────────────────────────────────────────────
 
@@ -430,11 +418,10 @@ def _persona_to_dict(p) -> dict:
         for a in p.avistamientos:
             avistamientos.append({
                 "id": a.id,
-                "fecha": a.fecha.isoformat(),
+                "fecha": a.creado_en.isoformat() if a.creado_en else None,
                 "fuente": a.fuente,
-                "detalles": a.detalles,
-                "es_oficial": a.es_oficial,
-                "url_origen": a.url_origen
+                "detalles": a.descripcion,
+                "url_origen": a.url_original
             })
 
     return {
