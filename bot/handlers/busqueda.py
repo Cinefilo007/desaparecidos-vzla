@@ -158,6 +158,7 @@ def get_busqueda_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
             CommandHandler("buscar", iniciar_busqueda),
+            MessageHandler(filters.Regex("^🔍 Buscar Persona$"), iniciar_busqueda),
             CallbackQueryHandler(iniciar_busqueda, pattern="^menu_buscar$"),
         ],
         states={

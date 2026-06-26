@@ -96,6 +96,12 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Implementado `post_init` para gestionar asíncronamente la configuración de comandos de Telegram (`configurar_comandos`), solucionando la excepción `RuntimeError: This event loop is already running`.
 - **2026-06-25 (Corrección de Event Loop en MainThread)**: Bucle de eventos explícito para el bot.
   - Modificado `bot/main.py` para crear e instalar un bucle de eventos nuevo (`asyncio.new_event_loop()`, `asyncio.set_event_loop()`) antes de instanciar la aplicación. Esto corrige el error `RuntimeError: There is no current event loop in thread 'MainThread'` debido a que el bucle de eventos temporal utilizado para inicializar la base de datos se destruía antes de iniciar el polling.
+- **2026-06-25 (Menú de Botones, Gemini 2.5 y Solución Asyncio)**: Nuevas características y robustez.
+  - Implementado un menú de botones persistente (`ReplyKeyboardMarkup` con `is_persistent=True` y `resize_keyboard=True`) en `bot/keyboards.py`, permitiendo abrir la Mini App web y acceder a comandos de forma directa.
+  - Modificado `bot/handlers/registro.py` y `bot/handlers/busqueda.py` para admitir disparadores de texto basados en expresiones regulares (`filters.Regex`) desde el menú de botones persistentes.
+  - Cambiada la versión del modelo de IA a `gemini-2.5-flash` en `config.py`.
+  - Reescrito el arranque del bot de Telegram en `bot/main.py` de forma completamente asíncrona dentro del mismo loop de eventos principal (`asyncio.run(main())`), solucionando permanentemente la excepción `RuntimeError: Event loop is closed` de SQLAlchemy/asyncpg al interactuar con Postgres.
+
 
 
 

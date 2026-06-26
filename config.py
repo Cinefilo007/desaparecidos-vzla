@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     @property
     def gemini_model(self) -> str:
-        return "gemini-2.0-flash"
+        return "gemini-2.5-flash"
 
     model_config = SettingsConfigDict(
         env_file=".env",

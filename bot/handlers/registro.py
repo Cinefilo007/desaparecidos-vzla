@@ -313,6 +313,7 @@ def get_registro_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
             CommandHandler("registrar", iniciar_registro),
+            MessageHandler(filters.Regex("^📝 Registrar Persona$"), iniciar_registro),
             CallbackQueryHandler(iniciar_registro, pattern="^menu_registrar$"),
         ],
         states={

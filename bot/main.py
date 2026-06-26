@@ -12,7 +12,7 @@ from telegram.ext import (
 
 from config import settings
 from database.crud import init_db, get_estadisticas
-from bot.keyboards import kb_menu_principal, kb_abrir_miniapp
+from bot.keyboards import kb_menu_principal, kb_abrir_miniapp, kb_menu_persistente
 from bot.handlers.registro import get_registro_handler
 from bot.handlers.busqueda import get_busqueda_handler, get_misc_handlers, mostrar_stats
 
@@ -32,7 +32,7 @@ async def cmd_start(update: Update, ctx):
         f"  ✅ Localizadas:  *{stats['localizados']}* personas\n\n"
         f"¿Qué deseas hacer?",
         parse_mode="Markdown",
-        reply_markup=kb_menu_principal(),
+        reply_markup=kb_menu_persistente(settings.miniapp_url),
     )
 
 
@@ -100,24 +100,15 @@ async def configurar_comandos(app: Application):
 
 # ── Función principal ──────────────────────────────────────────────────
 
-async def post_init(app: Application) -> None:
-    # Configurar comandos visibles
-    await configurar_comandos(app)
-
-def main():
-    # Inicializar base de datos de forma sincrónica
-    asyncio.run(init_db())
+async def main():
+    # Inicializar base de datos en el mismo loop
+    await init_db()
     logger.info("Base de datos inicializada ✓")
-
-    # Crear y establecer un event loop nuevo para este hilo principal
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
 
     # Construir aplicación
     app = (
         Application.builder()
         .token(settings.telegram_bot_token)
-        .post_init(post_init)
         .build()
     )
 
@@ -131,6 +122,9 @@ def main():
     app.add_handler(CommandHandler("help",      cmd_ayuda))
     app.add_handler(CommandHandler("stats",     mostrar_stats))
 
+    # Botones de texto (Menú Persistente)
+    app.add_handler(MessageHandler(filters.Regex("^📊 Estadísticas$"), mostrar_stats))
+
     # Callbacks
     app.add_handler(CallbackQueryHandler(cb_menu_principal, pattern="^menu_principal$"))
     app.add_handler(CallbackQueryHandler(cb_menu_mapa,      pattern="^menu_mapa$"))
@@ -143,11 +137,29 @@ def main():
     # Foto enviada fuera de contexto
     app.add_handler(MessageHandler(filters.PHOTO, foto_directa))
 
+    # Configurar comandos visibles
+    await configurar_comandos(app)
+
+    # Inicializar y arrancar aplicación y updater de forma asíncrona
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     logger.info("Bot iniciado correctamente ✓")
 
-    # Arrancar (ejecución sincrónica bloqueante y limpia)
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Mantener el bot en ejecución asíncrona limpia
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Deteniendo bot...")
+    finally:
+        # Apagado ordenado
+        if app.updater.running:
+            await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+        logger.info("Bot detenido ✓")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
