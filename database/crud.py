@@ -44,13 +44,17 @@ async def init_db():
             await conn.execute(text("ALTER TABLE personas ALTER COLUMN hora_desaparicion TYPE VARCHAR(100);"))
             await conn.execute(text("ALTER TABLE personas ALTER COLUMN contacto_telefono TYPE VARCHAR(100);"))
             
+            # Migraciones para ingresos_hospitales
+            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS cedula VARCHAR(100);"))
+            
             logger.info("Migración en caliente (PostgreSQL): Columnas verificadas, añadidas y ampliadas a 100 caracteres ✓")
         except Exception as e:
             # Fallback para SQLite de desarrollo
             try:
                 await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_local_path VARCHAR(500);"))
                 await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);"))
-                logger.info("Migración en caliente (SQLite): Columnas de rostro añadidas ✓")
+                await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN cedula VARCHAR(100);"))
+                logger.info("Migración en caliente (SQLite): Columnas añadidas ✓")
             except Exception as e2:
                 logger.debug(f"Aviso de migración SQLite: {e2}")
 
