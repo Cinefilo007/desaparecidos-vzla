@@ -82,5 +82,8 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Modificado `requirements.txt` para remover dependencias pesadas de IA no utilizadas (tensorflow, torch, deepface, whisper, faiss, playwright) con el fin de evitar fallas de memoria (OOM) y exceso de tiempo de compilación.
   - Modificado `railway.toml` para simplificar la compilación (sin Playwright) y unificar los servicios (API, Bot, Scheduler) dentro de un mismo contenedor.
   - Eliminado el archivo `Procfile` para evitar la creación de servicios duplicados en Railway.
+- **2026-06-25 (Corrección de Configuración)**: Migración de `config.py` a Pydantic v2.
+  - Actualizado `config.py` para usar `SettingsConfigDict` de `pydantic_settings` en lugar de la clase Config interna antigua (obsoleta en Pydantic v2). Esto soluciona el ValidationError al mapear variables de entorno en mayúsculas (`TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`) y restaura el comportamiento case-insensitive.
+
 
 

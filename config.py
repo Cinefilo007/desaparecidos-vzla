@@ -2,7 +2,7 @@
 config.py — Configuración centralizada con Pydantic Settings.
 Carga las variables de entorno y las valida al arrancar.
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from functools import lru_cache
 from typing import Optional
@@ -55,10 +55,11 @@ class Settings(BaseSettings):
     def gemini_model(self) -> str:
         return "gemini-2.0-flash"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
 
 
 @lru_cache()
