@@ -40,6 +40,8 @@ async def iniciar_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     """Punto de entrada: /admin o botón del teclado persistente."""
     chat_id = str(update.effective_chat.id)
     
+    logger.info(f"[Admin] Intento de acceso al panel por chat_id: {chat_id}")
+    
     if not es_administrador(chat_id):
         logger.warning(f"Intento de acceso no autorizado al panel administrativo de chat_id={chat_id}")
         await update.effective_message.reply_text(
