@@ -101,6 +101,9 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Modificado `bot/handlers/registro.py` y `bot/handlers/busqueda.py` para admitir disparadores de texto basados en expresiones regulares (`filters.Regex`) desde el menú de botones persistentes.
   - Cambiada la versión del modelo de IA a `gemini-2.5-flash` en `config.py`.
   - Reescrito el arranque del bot de Telegram en `bot/main.py` de forma completamente asíncrona dentro del mismo loop de eventos principal (`asyncio.run(main())`), solucionando permanentemente la excepción `RuntimeError: Event loop is closed` de SQLAlchemy/asyncpg al interactuar con Postgres.
+- **2026-06-25 (Corrección de URL de la Mini App)**: Sanitización de protocolo para botones WebApp.
+  - Agregado el validador `validate_miniapp_url` en `config.py` para forzar e inyectar el protocolo seguro `https://` en la URL de la Mini App si el usuario la configura sin protocolo en Railway, evitando la caída `BadRequest: Keyboard button web app url is invalid`.
+
 
 
 

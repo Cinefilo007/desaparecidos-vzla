@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level:   str = "INFO"
 
+    @field_validator("miniapp_url")
+    @classmethod
+    def validate_miniapp_url(cls, v):
+        if v:
+            v_clean = v.strip()
+            if not v_clean.startswith("http://") and not v_clean.startswith("https://"):
+                return f"https://{v_clean}"
+            return v_clean
+        return v
+
     @field_validator("database_url")
     @classmethod
     def validate_db_url(cls, v):
