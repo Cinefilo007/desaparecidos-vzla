@@ -100,9 +100,15 @@ class Worker:
     # ── Handlers Nuevos ────────────────────────────────────────────────
     
     async def handler_scraper_agentico(self):
-        from database.crud import listar_personas_desaparecidas, update_scraping_stats
+        from database.crud import listar_personas
+        from database.models import EstadoPersona
         from ai.scraper_agent import scraper_agent
-        personas = await listar_personas_desaparecidas(limite=5) # Lote de 5 vulnerables/alta prioridad
+        import redis.asyncio as aioredis
+        import json
+        from config import settings
+        
+        # Obtenemos personas que están siendo buscadas
+        personas = await listar_personas(estado=EstadoPersona.BUSCADO, limit=5)
         
         tot_sitios = 0
         tot_busquedas = 0
@@ -114,7 +120,15 @@ class Worker:
             tot_busquedas += stats.get("busquedas", 0)
             tot_similitudes += stats.get("similitudes", 0)
             
-        await update_scraping_stats(tot_sitios, tot_busquedas, tot_similitudes)
+        # Para las estadísticas globales, actualizamos Redis (asumiendo que las guarda ahí)
+        try:
+            r = await aioredis.from_url(settings.redis_url)
+            await r.incrby("stats:sitios", tot_sitios)
+            await r.incrby("stats:busquedas", tot_busquedas)
+            await r.incrby("stats:matches", tot_similitudes)
+            await r.close()
+        except Exception as e:
+            logger.error(f"[Worker] Error actualizando stats en Redis: {e}")
 
     async def handler_sincronizar_gdrive(self):
         from database.crud import crear_persona, buscar_posible_duplicado
