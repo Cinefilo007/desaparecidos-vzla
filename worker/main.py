@@ -52,6 +52,11 @@ class Worker:
     async def iniciar(self):
         await self.conectar()
         await init_db()
+        
+        # Limpiar colas viejas al arrancar para no procesar tareas atrasadas
+        logger.info("Limpiando colas antiguas de Redis...")
+        await self.redis.delete("queue:p1", "queue:p2", "queue:p3", "queue:p4")
+        
         logger.info("Esperando 15 segundos a que finalice el despliegue de Railway antes de arrancar...")
         await asyncio.sleep(15)
         logger.info("Bucle de escucha de cola de tareas iniciado en Redis (BLPOP)...")
