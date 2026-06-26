@@ -330,6 +330,21 @@ async def _registrar_y_finalizar(
     if foto_path and datos.tiene_cara_visible and datos.caja_delimitadora_rostro:
         foto_rostro_path = procesador_imagenes.recortar_rostro(foto_path, datos.caja_delimitadora_rostro)
 
+    # Mover fotos a uploads/ para su persistencia
+    import shutil
+    UPLOADS_DIR = Path("uploads")
+    UPLOADS_DIR.mkdir(exist_ok=True)
+    
+    if foto_path and os.path.exists(foto_path):
+        nuevo_path = UPLOADS_DIR / os.path.basename(foto_path)
+        shutil.move(foto_path, str(nuevo_path))
+        foto_path = str(nuevo_path)
+        
+    if foto_rostro_path and os.path.exists(foto_rostro_path):
+        nuevo_rostro_path = UPLOADS_DIR / os.path.basename(foto_rostro_path)
+        shutil.move(foto_rostro_path, str(nuevo_rostro_path))
+        foto_rostro_path = str(nuevo_rostro_path)
+
     # Crear en base de datos
     persona_dict = datos.to_persona_dict()
     persona_dict.update({

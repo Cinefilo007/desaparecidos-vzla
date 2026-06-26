@@ -268,10 +268,15 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
             await msg.reply_text("📥 *Enlace de Google Drive detectado.*\n\nEl Agente IA sincronizará los archivos periódicamente en segundo plano (PDF, DOCX, Excel) para cruzar listados de hospitales.", parse_mode="Markdown")
             
             # Simulamos el encolado inicial
-            from worker.main import redis_client
-            import json
-            if redis_client:
-                await redis_client.lpush("queue:p3", json.dumps({"tipo": "sincronizar_gdrive", "datos": {"url": texto}}))
+            try:
+                import redis.asyncio as aioredis
+                import json
+                from config import settings
+                redis_conn = await aioredis.from_url(settings.redis_url)
+                await redis_conn.lpush("queue:p3", json.dumps({"tipo": "sincronizar_gdrive", "datos": {"url": texto}}))
+                await redis_conn.close()
+            except Exception as e:
+                logger.error(f"Error encolando tarea gdrive: {e}")
             
             await enviar_menu_principal(update, ctx)
             return MENU_ADMIN
