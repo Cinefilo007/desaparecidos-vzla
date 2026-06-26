@@ -55,9 +55,6 @@ class Worker:
         await init_db()
         logger.info("Bucle de escucha de cola de tareas iniciado en Redis (BLPOP)...")
 
-        # Asegurar que existan fuentes de scraping básicas en la base de datos al arrancar
-        await self._precargar_fuentes_defecto()
-
         try:
             while True:
                 # BLPOP bloquea de forma asíncrona hasta que haya un elemento en alguna cola
@@ -436,25 +433,6 @@ Responde ÚNICAMENTE con un objeto JSON en el siguiente formato válido:
                         error=str(e)[:200]
                     )
                     s.add(alerta)
-
-    # ── Precarga de fuentes dinámicas por defecto ─────────────────────
-
-    async def _precargar_fuentes_defecto(self):
-        """Pre-carga algunas fuentes iniciales de scraping en la base de datos si está vacía."""
-        from database.models import FuenteScraping
-        from sqlalchemy import select
-        async with db_session() as s:
-            result = await s.execute(select(FuenteScraping).limit(1))
-            if not result.scalars().first():
-                fuentes = [
-                    FuenteScraping(nombre="El Nacional - Sucesos", url="https://www.elnacional.com/venezuela/", tipo="web", activa=True),
-                    FuenteScraping(nombre="Efecto Cocuyo", url="https://efectococuyo.com/", tipo="web", activa=True),
-                    FuenteScraping(nombre="Runrunes", url="https://runrun.es/", tipo="web", activa=True),
-                    FuenteScraping(nombre="Telegram Canal PCV", url="@ProteccionCivilVzla", tipo="telegram_channel", activa=True),
-                    FuenteScraping(nombre="Telegram Canal Bomberos", url="@BomberosVenezuela", tipo="telegram_channel", activa=True),
-                ]
-                s.add_all(fuentes)
-                logger.info("[Worker] Fuentes de scraping por defecto precargadas en base de datos ✓")
 
     # ── Auxiliares ────────────────────────────────────────────────────
 
