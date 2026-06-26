@@ -46,6 +46,7 @@ MODO_IDX = {Modo.PLENO: 0, Modo.MODERADO: 1, Modo.ECONOMICO: 2, Modo.EMERGENCIA:
 
 HASHTAGS = [
     "#DesaparecidosVenezuela", "#TerremotoVenezuela", "#SismoVenezuela",
+    "#LaGuaira", "#DesaparecidosLaGuaira", "#RescateLaGuaira",
     "#Maturin", "#Cumana", "#BarcelonaVzla", "#RescateVenezuela",
 ]
 
@@ -145,7 +146,8 @@ class PlanificadorAdaptativo:
         if modo in (Modo.ECONOMICO, Modo.EMERGENCIA):
             return
         keywords = ["rescate venezuela terremoto", "sismo maturin 2026",
-                    "desaparecidos venezuela sismo"]
+                    "desaparecidos venezuela sismo", "terremoto la guaira desaparecidos",
+                    "rescate la guaira sismo"]
         for kw in keywords:
             await self.encolar("buscar_videos_tiktok",
                                {"keyword": kw, "max_videos": 5}, prioridad=4)
