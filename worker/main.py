@@ -429,6 +429,12 @@ class Worker:
 
 if __name__ == "__main__":
     try:
+        logger.info("[Worker] Iniciando proceso principal...")
         asyncio.run(Worker().iniciar())
     except (KeyboardInterrupt, SystemExit):
-        pass
+        logger.info("[Worker] Proceso detenido manualmente.")
+    except Exception as e:
+        logger.error(f"[Worker] ERROR FATAL EN EL ARRANQUE: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise
