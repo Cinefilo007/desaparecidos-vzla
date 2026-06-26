@@ -310,9 +310,7 @@ class PlanificadorAdaptativo:
         self.scheduler.start()
         logger.info(f"✅ Planificador iniciado — Modo inicial: {modo_inicial.value}")
 
-        # Ejecutar un ciclo inmediato al arrancar
-        await self.job_scrape_web()
-        await self.job_telegram_channels()
+        # Esperar pasivamente a que los jobs se ejecuten según su frecuencia
 
         try:
             await asyncio.Event().wait()
