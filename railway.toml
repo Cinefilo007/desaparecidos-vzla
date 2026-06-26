@@ -3,7 +3,7 @@ builder = "NIXPACKS"
 buildCommand = "pip install -r requirements.txt"
 
 # ── Servicio Unificado: Bot + API + Scheduler ──────────────────────────
-[[deploy]]
+[deploy]
 startCommand = "python limpiar_db.py && python -m database.migrate && (python -m worker.main & python -m scheduler.main & python -m bot.main & uvicorn api.main:app --host 0.0.0.0 --port $PORT)"
 healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"
