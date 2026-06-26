@@ -78,4 +78,9 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Creación del archivo `.gitignore` para proteger credenciales (`.env`) e ignorar base de datos local SQLite (`vzla_bot.db`).
   - Inicialización del repositorio Git local (`git init`) y renombrado de la rama principal a `main`.
   - Realizado primer commit con toda la estructura de la aplicación.
+- **2026-06-25 (Despliegue y Optimización)**: Corrección de compilación y unificación de servicios en Railway.
+  - Modificado `requirements.txt` para remover dependencias pesadas de IA no utilizadas (tensorflow, torch, deepface, whisper, faiss, playwright) con el fin de evitar fallas de memoria (OOM) y exceso de tiempo de compilación.
+  - Modificado `railway.toml` para simplificar la compilación (sin Playwright) y unificar los servicios (API, Bot, Scheduler) dentro de un mismo contenedor.
+  - Eliminado el archivo `Procfile` para evitar la creación de servicios duplicados en Railway.
+
 

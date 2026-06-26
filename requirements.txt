@@ -21,22 +21,8 @@ apscheduler==3.10.4
 google-generativeai==0.8.3
 Pillow==10.4.0
 
-# ── IA — Búsqueda vectorial y NLP ─────────────────────────────────────
+# ── IA — Búsqueda y NLP ────────────────────────────────────────────────
 rapidfuzz==3.10.0
-sentence-transformers==3.2.1
-faiss-cpu==1.8.0
-
-# ── IA — Reconocimiento facial ─────────────────────────────────────────
-deepface==0.0.93
-opencv-python-headless==4.10.0.84
-
-# ── IA — Audio ────────────────────────────────────────────────────────
-openai-whisper==20240930
-
-# ── Scraping ──────────────────────────────────────────────────────────
-beautifulsoup4==4.12.3
-playwright==1.47.0
-yt-dlp==2024.10.22
 
 # ── Utilidades ────────────────────────────────────────────────────────
 python-dotenv==1.0.1
@@ -44,4 +30,3 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 loguru==0.7.2
 python-multipart==0.0.12
-numpy==1.26.4
