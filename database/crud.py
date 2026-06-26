@@ -2,11 +2,12 @@
 database/crud.py — Operaciones CRUD asíncronas sobre la base de datos.
 """
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy import select, update, func, and_, or_
+from sqlalchemy import select, update, func, and_, or_, text
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime
 import hashlib
+from loguru import logger
 
 from config import settings
 from database.models import Base, Persona, Avistamiento, Alerta, Voluntario, EstadoPersona, SuscripcionAlerta, FuenteScraping, IngresoHospital
@@ -25,9 +26,24 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def init_db():
-    """Crea todas las tablas si no existen."""
+    """Crea todas las tablas si no existen y corre migraciones necesarias."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Migraciones en caliente para columnas de rostro en la tabla 'personas'
+        try:
+            # Sintaxis PostgreSQL
+            await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_local_path VARCHAR(500);"))
+            await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_url VARCHAR(500);"))
+            logger.info("Migración en caliente (PostgreSQL): Columnas de rostro verificadas/añadidas ✓")
+        except Exception as e:
+            # Fallback para SQLite de desarrollo
+            try:
+                await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_local_path VARCHAR(500);"))
+                await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);"))
+                logger.info("Migración en caliente (SQLite): Columnas de rostro añadidas ✓")
+            except Exception as e2:
+                logger.debug(f"Aviso de migración SQLite (columnas probablemente ya existentes): {e2}")
 
 
 # ── Context manager para sesiones ─────────────────────────────────────

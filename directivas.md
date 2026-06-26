@@ -114,9 +114,12 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Integrado el flujo de suscripción en el Bot de Telegram (`bot/handlers/busqueda.py`) con los botones dinámicos en `bot/keyboards.py`.
   - Mejorada la lógica de sugerencia de registro para búsquedas sin resultados, guiando de inmediato al usuario al flujo de registro de desaparecidos.
 - **2026-06-25 (Solución de Base de Datos y Panel de Control de Admin)**: Reactivación de producción y gestión interactiva.
-  - Implementado el script de migración en caliente en `database/migrate.py` para inyectar las columnas `foto_rostro_local_path` y `foto_rostro_url` a la tabla `personas` en PostgreSQL, solucionando el error ProgrammingError y el bloqueo en Railway.
-  - Modificado `railway.toml` para que el despliegue ejecute la migración al inicio del contenedor unificado.
+  - Implementado el script de migración en caliente en `database/migrate.py` con hasta 5 reintentos y esperas de 3 segundos ante retrasos en la conexión con la base de datos de Railway.
+  - Modificado el orden de precedencia y agrupamiento en `railway.toml` para ejecutar sincrónicamente la migración de base de datos antes de levantar los servicios unificados de fondo en Railway, garantizando que el bot y la API arranquen con la estructura de tablas corregida.
   - Creado el panel administrativo en `bot/handlers/admin.py` protegido por `ADMIN_CHAT_ID` con menús inline interactivos para añadir fuentes de scraping y cargar listas de ingresos hospitalarios de texto.
   - Implementada la notificación automática por Telegram al familiar si un ingreso hospitalario coincide fonéticamente con una persona en estado de búsqueda.
   - Actualizado `bot/keyboards.py` para inyectar dinámicamente el botón "⚙️ Panel Administrar" en el teclado persistente del chat solo si el usuario es administrador.
-  - Expuestos los endpoints `GET/POST /api/fuentes` y `GET/POST /api/hospitales/ingresos` en `api/main.py` para administración programática.
+  - Expuestos los endpoints `GET/POST /api/fuentes` y `GET/POST /api/hospitales/ingresos` in `api/main.py` para administración programática.
+- **2026-06-25 (Solución Definitiva de Base de Datos e Integración de Migraciones)**:
+  - Modificado `database/crud.py` para integrar la lógica de migración en caliente (`ALTER TABLE personas ADD COLUMN IF NOT EXISTS ...`) directamente en `init_db()`. Esto garantiza que los campos `foto_rostro_local_path` y `foto_rostro_url` se verifiquen y creen automáticamente en PostgreSQL de producción al iniciar cualquier servicio (bot, API, worker), previniendo de raíz el error `UndefinedColumnError` y eliminando fallas de arranque que inducen a colisiones de polling de Telegram en despliegues concurrentes de Railway.
+
