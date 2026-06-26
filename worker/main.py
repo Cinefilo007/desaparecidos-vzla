@@ -18,8 +18,7 @@ from telegram import Bot
 
 from config import settings
 from database.crud import (
-    init_db, db_session, listar_personas, crear_avistamiento,
-    obtener_suscritos, es_usuario_suscrito
+    init_db, db_session, listar_personas
 )
 from database.models import Persona, EstadoPersona, Avistamiento, Alerta
 
