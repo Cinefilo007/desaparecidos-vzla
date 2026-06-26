@@ -33,7 +33,7 @@ class Worker:
         self.redis: Optional[aioredis.Redis] = None
         self.bot: Optional[Bot] = None
         self.client: Optional[httpx.AsyncClient] = None
-        self.gemini_model = genai.GenerativeModel(settings.gemini_model)
+        self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
     async def conectar(self):
         self.redis = await aioredis.from_url(settings.redis_url, decode_responses=True)
