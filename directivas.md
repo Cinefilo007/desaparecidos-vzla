@@ -84,6 +84,11 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Eliminado el archivo `Procfile` para evitar la creación de servicios duplicados en Railway.
 - **2026-06-25 (Corrección de Configuración)**: Migración de `config.py` a Pydantic v2.
   - Actualizado `config.py` para usar `SettingsConfigDict` de `pydantic_settings` en lugar de la clase Config interna antigua (obsoleta en Pydantic v2). Esto soluciona el ValidationError al mapear variables de entorno en mayúsculas (`TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`) y restaura el comportamiento case-insensitive.
+- **2026-06-25 (Corrección de Tolerancia a Fallos)**: Robustez ante variables de entorno faltantes.
+  - Modificado `config.py` para asignar valores por defecto vacíos (`""`) a `telegram_bot_token` y `gemini_api_key`, evitando que la app crasheé de inmediato con un `ValidationError`.
+  - Agregado log de depuración seguro para enumerar las claves de entorno de bot y base de datos detectadas en el contenedor de Railway.
+  - Implementadas alertas de error explícitas en los logs para advertir si las variables críticas están vacías o ausentes.
+
 
 
 

@@ -2,6 +2,8 @@
 config.py — Configuración centralizada con Pydantic Settings.
 Carga las variables de entorno y las valida al arrancar.
 """
+import os
+from loguru import logger
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from functools import lru_cache
@@ -10,11 +12,11 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # ── Telegram ────────────────────────────────────────────────────
-    telegram_bot_token: str
+    telegram_bot_token: str = ""
     admin_chat_id: int = 0
 
     # ── Google Gemini ───────────────────────────────────────────────
-    gemini_api_key: str
+    gemini_api_key: str = ""
 
     # ── Presupuesto Gemini (tier gratuito) ──────────────────────────
     gemini_daily_token_limit:   int = 800_000
@@ -64,8 +66,20 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Singleton — carga la configuración una sola vez."""
-    return Settings()
+    """Singleton — carga la configuración una sola vez y valida con logs explícitos."""
+    # Log de depuración seguro para ver qué variables recibe el contenedor
+    env_keys = [k for k in os.environ.keys() if any(x in k.upper() for x in ["TELEGRAM", "GEMINI", "REDIS", "DATABASE", "PORT", "ENV"])]
+    logger.info(f"[CONFIG] Claves de entorno detectadas: {env_keys}")
+
+    s = Settings()
+
+    # Validaciones personalizadas con logs explícitos para no expertos
+    if not s.telegram_bot_token or s.telegram_bot_token == "tu_token_aqui":
+        logger.error("❌ ERROR CRÍTICO: La variable TELEGRAM_BOT_TOKEN no está configurada o está vacía en Railway.")
+    if not s.gemini_api_key or s.gemini_api_key == "tu_key_aqui":
+        logger.error("❌ ERROR CRÍTICO: La variable GEMINI_API_KEY no está configurada o está vacía en Railway.")
+        
+    return s
 
 
 settings = get_settings()
