@@ -26,49 +26,12 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def init_db():
-    """Crea todas las tablas si no existen y corre migraciones necesarias."""
+    """Crea todas las tablas si no existen."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        
-        # Migraciones en caliente para columnas de rostro y ampliación de campos VARCHAR
-        try:
-            # Sintaxis PostgreSQL - Crear nuevas columnas
-            await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_local_path VARCHAR(500);"))
-            await conn.execute(text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS foto_rostro_url VARCHAR(500);"))
-            
-            # Sintaxis PostgreSQL - Ampliar longitud de columnas para evitar truncamientos
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN cedula TYPE VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN fecha_nacimiento TYPE VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN genero TYPE VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN fecha_desaparicion TYPE VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN hora_desaparicion TYPE VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE personas ALTER COLUMN contacto_telefono TYPE VARCHAR(100);"))
-            
-            # Migraciones para ingresos_hospitales
-            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS cedula VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS genero VARCHAR(50);"))
-            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS estatus_actual VARCHAR(100);"))
-            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS observaciones TEXT;"))
-            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS persona_id_vinculada INTEGER;"))
-            
-            logger.info("Migración en caliente (PostgreSQL): Columnas verificadas, añadidas y ampliadas a 100 caracteres ✓")
-        except Exception as e:
-            # Fallback para SQLite de desarrollo
-            cols = [
-                "ALTER TABLE personas ADD COLUMN foto_rostro_local_path VARCHAR(500);",
-                "ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);",
-                "ALTER TABLE ingresos_hospitales ADD COLUMN cedula VARCHAR(100);",
-                "ALTER TABLE ingresos_hospitales ADD COLUMN genero VARCHAR(50);",
-                "ALTER TABLE ingresos_hospitales ADD COLUMN estatus_actual VARCHAR(100);",
-                "ALTER TABLE ingresos_hospitales ADD COLUMN observaciones TEXT;",
-                "ALTER TABLE ingresos_hospitales ADD COLUMN persona_id_vinculada INTEGER;"
-            ]
-            for col_query in cols:
-                try:
-                    await conn.execute(text(col_query))
-                except Exception:
-                    pass
-            logger.info("Migración en caliente (SQLite): Columnas revisadas ✓")
+        logger.info("Tablas verificadas en la base de datos ✓")
+
+
 
 
 # ── Context manager para sesiones ─────────────────────────────────────
