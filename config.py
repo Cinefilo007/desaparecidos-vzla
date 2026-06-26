@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level:   str = "INFO"
 
+    @field_validator("database_url")
+    @classmethod
+    def validate_db_url(cls, v):
+        if v and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @field_validator("environment")
     @classmethod
     def validate_env(cls, v):

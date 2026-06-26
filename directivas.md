@@ -88,6 +88,10 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Modificado `config.py` para asignar valores por defecto vacíos (`""`) a `telegram_bot_token` y `gemini_api_key`, evitando que la app crasheé de inmediato con un `ValidationError`.
   - Agregado log de depuración seguro para enumerar las claves de entorno de bot y base de datos detectadas en el contenedor de Railway.
   - Implementadas alertas de error explícitas en los logs para advertir si las variables críticas están vacías o ausentes.
+- **2026-06-25 (Soporte PostgreSQL en Producción)**: Adaptación de base de datos para Railway.
+  - Agregado el driver asíncrono `asyncpg` a `requirements.txt` para habilitar conexiones asíncronas con PostgreSQL.
+  - Implementado un validador en `config.py` (`validate_db_url`) que traduce automáticamente el formato estándar `postgresql://` inyectado por Railway al protocolo asíncrono `postgresql+asyncpg://` requerido por SQLAlchemy.
+
 
 
 
