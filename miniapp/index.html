@@ -800,6 +800,7 @@ const state = {
   regDatos: {},
   regPasoActual: 1,
   searchTimer: null,
+  personaSeleccionada: null
 };
 
 // ── Navegación ─────────────────────────────────────────────────
@@ -932,6 +933,7 @@ async function verDetalle(id) {
   } catch {
     p = (state.personas.find(x => x.id === id)) || getDemoPersonas()[0];
   }
+  state.personaSeleccionada = p;
   const badgeClass = p.estado === 'localizado' ? 'success' : 'danger';
   const badgeText  = p.estado === 'localizado' ? '✅ Localizado' : '🔴 Sin contacto';
   const foto = p.foto_url
@@ -954,7 +956,8 @@ async function verDetalle(id) {
     <div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:10px">
       <button class="btn-primary" onclick="marcarLocalizado(${p.id})">✅ Marcar como LOCALIZADO</button>
       <button class="btn-secondary" onclick="compartirFicha(${p.id},'${p.nombre}')">🔗 Compartir ficha</button>
-      <button class="btn-secondary" onclick="reportarInfo(${p.id})">📣 Tengo información de esta persona</button>
+      <button class="btn-secondary" onclick="reportarInfo()">📣 Tengo información de esta persona</button>
+      <button class="btn-secondary" onclick="activarAlertas()">🔔 Activar Alertas</button>
     </div>`;
   document.getElementById('modal-detalle').classList.add('open');
 }

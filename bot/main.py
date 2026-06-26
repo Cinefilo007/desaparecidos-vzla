@@ -26,6 +26,25 @@ async def cmd_start(update: Update, ctx):
     chat_id = str(update.effective_chat.id)
     es_admin = es_administrador(chat_id)
 
+    if ctx.args:
+        arg = ctx.args[0]
+        if arg.startswith("alertas_"):
+            try:
+                persona_id = int(arg.split("_")[1])
+                from database.crud import suscribir_a_persona, get_persona
+                await suscribir_a_persona(persona_id, chat_id)
+                p = await get_persona(persona_id)
+                nombre = p.nombre_completo() if p else "la persona"
+                await update.message.reply_text(f"🔔 *¡Alertas activadas para {nombre}!*\nTe avisaremos de cualquier novedad.", parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Error procesando deep link alertas: {e}")
+        elif arg.startswith("info_"):
+            try:
+                persona_id = int(arg.split("_")[1])
+                await update.message.reply_text(f"📣 *¿Tienes información?*\n\nPor favor, responde a este mensaje con los detalles que tengas o utiliza el comando /registrar si deseas actualizar datos.", parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Error procesando deep link info: {e}")
+
     await update.message.reply_text(
         f"🇻🇪 *Desaparecidos — Terremoto Venezuela 2026*\n\n"
         f"Hola {nombre_usuario}. Este bot ayuda a reconectar familias "

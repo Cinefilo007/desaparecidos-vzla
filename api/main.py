@@ -44,8 +44,12 @@ app.add_middleware(
 UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(exist_ok=True)
 
-# Servir uploads
+FOTOS_TEMP_DIR = Path("fotos_temp")
+FOTOS_TEMP_DIR.mkdir(exist_ok=True)
+
+# Servir uploads y fotos temporales (importante para mostrar rostros extraídos de registros en la app)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/fotos_temp", StaticFiles(directory="fotos_temp"), name="fotos_temp")
 
 # Servir la Mini App como archivos estáticos
 MINIAPP_DIR = Path("miniapp")
