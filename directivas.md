@@ -91,6 +91,10 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
 - **2026-06-25 (Soporte PostgreSQL en Producción)**: Adaptación de base de datos para Railway.
   - Agregado el driver asíncrono `asyncpg` a `requirements.txt` para habilitar conexiones asíncronas con PostgreSQL.
   - Implementado un validador en `config.py` (`validate_db_url`) que traduce automáticamente el formato estándar `postgresql://` inyectado por Railway al protocolo asíncrono `postgresql+asyncpg://` requerido por SQLAlchemy.
+- **2026-06-25 (Corrección del Bucle de Eventos del Bot)**: Solución de colisión en asyncio.
+  - Modificado `bot/main.py` para reescribir `main()` como una función sincrónica y llamar a `app.run_polling()` de forma bloqueante.
+  - Implementado `post_init` para gestionar asíncronamente la configuración de comandos de Telegram (`configurar_comandos`), solucionando la excepción `RuntimeError: This event loop is already running`.
+
 
 
 

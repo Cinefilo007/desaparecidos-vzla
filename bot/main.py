@@ -100,15 +100,20 @@ async def configurar_comandos(app: Application):
 
 # ── Función principal ──────────────────────────────────────────────────
 
-async def main():
-    # Inicializar base de datos
-    await init_db()
+async def post_init(app: Application) -> None:
+    # Configurar comandos visibles
+    await configurar_comandos(app)
+
+def main():
+    # Inicializar base de datos de forma sincrónica
+    asyncio.run(init_db())
     logger.info("Base de datos inicializada ✓")
 
     # Construir aplicación
     app = (
         Application.builder()
         .token(settings.telegram_bot_token)
+        .post_init(post_init)
         .build()
     )
 
@@ -134,13 +139,11 @@ async def main():
     # Foto enviada fuera de contexto
     app.add_handler(MessageHandler(filters.PHOTO, foto_directa))
 
-    # Configurar comandos visibles
-    await configurar_comandos(app)
     logger.info("Bot iniciado correctamente ✓")
 
-    # Arrancar
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Arrancar (ejecución sincrónica bloqueante y limpia)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
