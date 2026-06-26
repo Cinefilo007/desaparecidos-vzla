@@ -46,17 +46,29 @@ async def init_db():
             
             # Migraciones para ingresos_hospitales
             await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS cedula VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS genero VARCHAR(50);"))
+            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS estatus_actual VARCHAR(100);"))
+            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS observaciones TEXT;"))
+            await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN IF NOT EXISTS persona_id_vinculada INTEGER;"))
             
             logger.info("Migración en caliente (PostgreSQL): Columnas verificadas, añadidas y ampliadas a 100 caracteres ✓")
         except Exception as e:
             # Fallback para SQLite de desarrollo
-            try:
-                await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_local_path VARCHAR(500);"))
-                await conn.execute(text("ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);"))
-                await conn.execute(text("ALTER TABLE ingresos_hospitales ADD COLUMN cedula VARCHAR(100);"))
-                logger.info("Migración en caliente (SQLite): Columnas añadidas ✓")
-            except Exception as e2:
-                logger.debug(f"Aviso de migración SQLite: {e2}")
+            cols = [
+                "ALTER TABLE personas ADD COLUMN foto_rostro_local_path VARCHAR(500);",
+                "ALTER TABLE personas ADD COLUMN foto_rostro_url VARCHAR(500);",
+                "ALTER TABLE ingresos_hospitales ADD COLUMN cedula VARCHAR(100);",
+                "ALTER TABLE ingresos_hospitales ADD COLUMN genero VARCHAR(50);",
+                "ALTER TABLE ingresos_hospitales ADD COLUMN estatus_actual VARCHAR(100);",
+                "ALTER TABLE ingresos_hospitales ADD COLUMN observaciones TEXT;",
+                "ALTER TABLE ingresos_hospitales ADD COLUMN persona_id_vinculada INTEGER;"
+            ]
+            for col_query in cols:
+                try:
+                    await conn.execute(text(col_query))
+                except Exception:
+                    pass
+            logger.info("Migración en caliente (SQLite): Columnas revisadas ✓")
 
 
 # ── Context manager para sesiones ─────────────────────────────────────
