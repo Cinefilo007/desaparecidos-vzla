@@ -214,12 +214,11 @@ async def cb_cargar_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     
     await query.message.edit_text(
         "🏥 *Carga Masiva de Hospital*\n\n"
-        "Pega aquí la lista de personas ingresadas.\n\n"
-        "*Formato sugerido (una por línea):*\n"
-        "`Hospital Domingo Luciani`\n"
-        "`Juan Perez, 30 años`\n"
-        "`Maria Gomez, posible fractura`\n\n"
-        "El sistema intentará cruzar estos datos con la base de datos de desaparecidos.",
+        "Pega aquí el texto o *envía una foto* de la lista de personas ingresadas.\n\n"
+        "*Formato sugerido para texto (una por línea):*\n"
+        "`Juan Perez, 30, Hospital Central, traumatismo`\n"
+        "`Maria Gomez, 25, Clínica Avila, estable`\n\n"
+        "El sistema cruzará estos datos con los reportes de desaparecidos automáticamente.",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin_volver")]])
     )
@@ -227,40 +226,73 @@ async def cb_cargar_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    texto = update.message.text.strip()
-    lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+    msg = update.message
     
-    await update.message.reply_text(f"⏳ Procesando {len(lineas)} registros de hospital y ejecutando cruces fonéticos...")
+    # Lista para almacenar los ingresos extraídos de foto o texto
+    ingresos_a_procesar = []
+    
+    if msg.photo:
+        await msg.reply_text("⏳ Analizando imagen de hospital con IA... (esto puede tardar unos segundos)")
+        import uuid
+        from pathlib import Path
+        foto = msg.photo[-1]
+        file = await ctx.bot.get_file(foto.file_id)
+        FOTOS_DIR = Path("fotos_temp")
+        FOTOS_DIR.mkdir(exist_ok=True)
+        ruta = FOTOS_DIR / f"hosp_{uuid.uuid4()}.jpg"
+        await file.download_to_drive(str(ruta))
+        
+        from ai.image_processor import procesador_imagenes
+        lista_datos = await procesador_imagenes.extraer_datos(str(ruta))
+        
+        if not lista_datos:
+            await msg.reply_text("❌ No pude extraer datos de la imagen.")
+            return await enviar_menu_principal(update, ctx)
+            
+        hospital_global = msg.caption or "Hospital/Centro (Extraído de listado)"
+        for d in lista_datos:
+            if d.nombre:
+                ingresos_a_procesar.append({
+                    "nombre_completo": d.nombre_completo(),
+                    "edad": d.edad,
+                    "hospital_nombre": hospital_global,
+                    "detalles_ingreso": d.condicion_medica or "Ingreso clínico",
+                    "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
+                })
+    else:
+        # Texto
+        texto = msg.text.strip()
+        lineas = [l.strip() for l in texto.split("\n") if l.strip()]
+        for linea in lineas:
+            partes = [p.strip() for p in linea.split(",")]
+            if len(partes) < 3:
+                partes = [p.strip() for p in linea.split("-")]
+            if len(partes) < 3:
+                continue
+            
+            try:
+                edad = int("".join(filter(str.isdigit, partes[1])))
+            except:
+                edad = None
+                
+            ingresos_a_procesar.append({
+                "nombre_completo": partes[0],
+                "edad": edad,
+                "hospital_nombre": partes[2],
+                "detalles_ingreso": partes[3] if len(partes) > 3 else "Ingreso reportado",
+                "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
+            })
+
+    if not ingresos_a_procesar:
+        await msg.reply_text("⚠️ No pude detectar ingresos válidos. Intenta nuevamente.")
+        return ESPERANDO_LISTA_HOSPITAL
+        
+    await msg.reply_text(f"⏳ Procesando {len(ingresos_a_procesar)} registros de hospital y ejecutando cruces...")
     
     exitosos = 0
     coincidencias = 0
     
-    for linea in lineas:
-        partes = [p.strip() for p in linea.split("-")]
-        if len(partes) < 3:
-            # Reintentar con comas o formato libre básico
-            partes = [p.strip() for p in linea.split(",")]
-            
-        if len(partes) < 3:
-            continue
-            
-        nombre = partes[0]
-        try:
-            edad = int("".join(filter(str.isdigit, partes[1])))
-        except Exception:
-            edad = None
-            
-        hospital = partes[2]
-        detalles = partes[3] if len(partes) > 3 else "Ingreso reportado"
-        
-        datos_ingreso = {
-            "nombre_completo": nombre,
-            "edad": edad,
-            "hospital_nombre": hospital,
-            "detalles_ingreso": detalles,
-            "fecha_ingreso": datetime.now().strftime("%d/%m/%Y")
-        }
-        
+    for datos_ingreso in ingresos_a_procesar:
         try:
             ingreso = await registrar_ingreso_hospital(datos_ingreso)
             exitosos += 1
@@ -436,7 +468,7 @@ def get_admin_handler() -> ConversationHandler:
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],
             ESPERANDO_LISTA_HOSPITAL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, recibir_lista_hospital),
+                MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, recibir_lista_hospital),
                 CallbackQueryHandler(cb_volver_menu,              pattern="^admin_volver$"),
                 CallbackQueryHandler(cancelar_admin,             pattern="^cancelar$"),
             ],

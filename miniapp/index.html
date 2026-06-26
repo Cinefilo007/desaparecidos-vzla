@@ -794,6 +794,12 @@
   </div>
 </div>
 
+<!-- ── MODAL ZOOM IMAGEN ── -->
+<div id="modal-zoom-imagen" onclick="cerrarImagen()">
+  <button class="btn-close-zoom" onclick="cerrarImagen()">✕</button>
+  <img id="zoom-img-target" src="" alt="Zoom" onclick="event.stopPropagation()">
+</div>
+
 <!-- ── TOAST ── -->
 <div class="toast" id="toast"></div>
 
@@ -1088,10 +1094,22 @@ function activarAlertas(id) {
 }
 
 function abrirImagen(url) {
-  if (window.Telegram?.WebApp) {
-    window.Telegram.WebApp.openLink(window.location.origin + url);
+  const modal = document.getElementById('modal-zoom-imagen');
+  const img = document.getElementById('zoom-img-target');
+  if (modal && img) {
+    img.src = url;
+    modal.classList.add('open');
   } else {
+    // Fallback if modal is not in DOM
     window.open(url, '_blank');
+  }
+}
+
+function cerrarImagen() {
+  const modal = document.getElementById('modal-zoom-imagen');
+  if (modal) {
+    modal.classList.remove('open');
+    document.getElementById('zoom-img-target').src = '';
   }
 }
 

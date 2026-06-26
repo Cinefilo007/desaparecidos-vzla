@@ -6,6 +6,8 @@ import json
 import re
 import uuid
 import asyncio
+import cv2
+import numpy as np
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -247,42 +249,61 @@ class ProcesadorImagenes:
                     pass
         return {}
 
-    def recortar_rostro(self, ruta_imagen: str, caja: list) -> Optional[str]:
-        """Recorta el rostro de una imagen según la caja delimitadora normalizada [ymin, xmin, ymax, xmax]."""
+    def recortar_rostro(self, ruta_imagen: str, caja: list = None) -> Optional[str]:
+        """
+        Recorta el rostro principal de una imagen usando OpenCV Haar Cascades.
+        Ignora el parámetro 'caja' de Gemini ya que suele ser inexacto.
+        """
         try:
-            if not caja or len(caja) != 4:
+            # Cargar la imagen con OpenCV
+            img_cv = cv2.imread(ruta_imagen)
+            if img_cv is None:
+                logger.error(f"No se pudo cargar la imagen para OpenCV: {ruta_imagen}")
                 return None
             
-            img = Image.open(ruta_imagen)
-            w, h = img.size
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
             
-            # Las coordenadas de Gemini vienen normalizadas de 0 a 1000
-            # [ymin, xmin, ymax, xmax]
-            ymin, xmin, ymax, xmax = caja
+            # Cargar el clasificador pre-entrenado frontal de OpenCV
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
             
-            # Convertir a pixeles reales
-            left = int((xmin / 1000.0) * w)
-            top = int((ymin / 1000.0) * h)
-            right = int((xmax / 1000.0) * w)
-            bottom = int((ymax / 1000.0) * h)
+            # Detectar rostros
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
             
-            # Evitar desbordes de coordenadas
-            left = max(0, min(left, w - 1))
-            top = max(0, min(top, h - 1))
-            right = max(left + 10, min(right, w))
-            bottom = max(top + 10, min(bottom, h))
+            if len(faces) == 0:
+                logger.warning(f"OpenCV no detectó rostros en {ruta_imagen}")
+                return None
             
-            # Recortar
-            cara = img.crop((left, top, right, bottom))
+            # Asumir que el rostro principal es el más grande
+            faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
+            x, y, w, h = faces[0]
             
-            # Guardar en la misma carpeta temp o en uploads con nombre único
+            # Añadir padding (30%)
+            img_h, img_w = img_cv.shape[:2]
+            pad_x = int(w * 0.3)
+            pad_y = int(h * 0.3)
+            
+            left = max(0, x - pad_x)
+            top = max(0, y - pad_y)
+            right = min(img_w, x + w + pad_x)
+            bottom = min(img_h, y + h + pad_y)
+            
+            # Recortar usando las coordenadas con padding
+            rostro_cv = img_cv[top:bottom, left:right]
+            
+            # Guardar la nueva imagen
             p = Path(ruta_imagen)
             ruta_rostro = p.parent / f"rostro_{p.stem}.jpg"
-            cara.save(ruta_rostro, "JPEG", quality=95)
-            logger.info(f"[IA] Rostro recortado y guardado en {ruta_rostro}")
+            cv2.imwrite(str(ruta_rostro), rostro_cv)
+            
             return str(ruta_rostro)
+            
         except Exception as e:
-            logger.error(f"[IA] Error al recortar rostro: {e}")
+            logger.error(f"Error recortando rostro con OpenCV: {e}")
             return None
 
     async def comparar_rostros_gemini(self, ruta_foto_busqueda: str, lista_candidatos: list) -> Optional[dict]:
