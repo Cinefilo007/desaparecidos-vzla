@@ -247,7 +247,8 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         
         if not lista_datos:
             await msg.reply_text("❌ No pude extraer datos de la imagen.")
-            return await enviar_menu_principal(update, ctx)
+            await enviar_menu_principal(update, ctx)
+            return MENU_ADMIN
             
         hospital_global = msg.caption or "Hospital/Centro (Extraído de listado)"
         for d in lista_datos:
@@ -323,7 +324,7 @@ async def recibir_lista_hospital(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
             
     await update.message.reply_text(
         f"📊 *Resultados de la Carga de Hospitales:*\n\n"
-        f"• Registros procesados con éxito: *{exitosos}/{len(lineas)}*\n"
+        f"• Registros procesados con éxito: *{exitosos}/{len(ingresos_a_procesar)}*\n"
         f"• Coincidencias/Alertas automáticas enviadas: *{coincidencias}*",
         parse_mode="Markdown"
     )
