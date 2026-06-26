@@ -7,8 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
@@ -616,10 +617,36 @@
       </button>
     </div>
 
+    <!-- KPIs de actividad del bot -->
+    <div class="px-4 mb-4">
+      <div style="background:var(--surface-2);border-radius:var(--r-card);padding:12px;display:flex;align-items:center;gap:12px;border:1px solid var(--border)">
+        <div style="font-size:24px;">📡</div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Bot de Scraping Activo</div>
+          <div style="font-size:12px;font-weight:500;margin-top:2px;">
+            Rastreando 4 fuentes: X, RRSS, Web... <span class="pulse-dot" style="display:inline-block;margin-left:4px"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buscador Rápido -->
+    <div class="search-bar px-4 mb-4" style="margin-top: -8px;">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input id="home-search-input" class="search-input" type="search"
+             placeholder="Buscar nombre o cédula..."
+             oninput="state.homeSearch=this.value; state.paginaVisible=1; renderLista();" autocomplete="off" />
+    </div>
+
     <!-- Últimas novedades -->
     <div class="section-title">⚡ Últimas novedades</div>
-    <div class="persona-list" id="lista-recientes">
+    <div class="persona-list" id="lista-home">
       <div class="loader"><div class="spinner"></div></div>
+    </div>
+    <div class="px-4" style="text-align:center; padding-bottom: 24px;">
+      <button class="btn-secondary" id="btn-load-more" onclick="state.paginaVisible++; renderLista();" style="display:none; padding:8px 16px; font-size:13px;">↓ Cargar más</button>
     </div>
   </div>
 
@@ -800,7 +827,10 @@ const state = {
   regDatos: {},
   regPasoActual: 1,
   searchTimer: null,
-  personaSeleccionada: null
+  personaSeleccionada: null,
+  homeSearch: '',
+  paginaVisible: 1,
+  pageSize: 10
 };
 
 // ── Navegación ─────────────────────────────────────────────────
@@ -816,6 +846,34 @@ function irA(vista) {
   if (vista === 'registrar') resetRegistro();
   if (vista === 'admin')    cargarLogs();
 }
+
+// ── Render Lista con Paginación ────────────────────────────────
+function renderLista() {
+  const lista = document.getElementById('lista-home');
+  let data = [...state.personas];
+  
+  if (state.homeSearch) {
+    const q = state.homeSearch.toLowerCase();
+    data = data.filter(p => 
+      (p.nombre && p.nombre.toLowerCase().includes(q)) || 
+      (p.cedula && p.cedula.toLowerCase().includes(q))
+    );
+  }
+
+  if (data.length === 0) {
+    lista.innerHTML = `<div class="empty-state">No se encontraron personas.</div>`;
+    document.getElementById('btn-load-more').style.display = 'none';
+    return;
+  }
+
+  const limite = state.paginaVisible * state.pageSize;
+  const paginatedData = data.slice(0, limite);
+  
+  document.getElementById('btn-load-more').style.display = limite < data.length ? 'inline-block' : 'none';
+
+  lista.innerHTML = paginatedData.map(p => cardPersona(p)).join('');
+}
+
 
 // ── Stats (Home) ───────────────────────────────────────────────
 async function cargarStats() {
@@ -836,7 +894,8 @@ function mostrarDemoStats() {
   animarNumero('stat-total',      247);
   animarNumero('stat-buscados',   189);
   animarNumero('stat-localizados', 58);
-  renderPersonas(getDemoPersonas(), 'lista-recientes');
+  state.personas = getDemoPersonas();
+  renderLista();
 }
 
 function animarNumero(id, target) {
@@ -853,11 +912,13 @@ function animarNumero(id, target) {
 
 async function cargarRecientes() {
   try {
-    const r = await fetch(`${API}/personas?limit=5`);
+    const r = await fetch(`${API}/personas?limit=50`);
     const d = await r.json();
-    renderPersonas(d.personas || getDemoPersonas(), 'lista-recientes');
+    state.personas = d.personas || getDemoPersonas();
+    renderLista();
   } catch {
-    renderPersonas(getDemoPersonas(), 'lista-recientes');
+    state.personas = getDemoPersonas();
+    renderLista();
   }
 }
 
@@ -1120,13 +1181,15 @@ async function enviarRegistro() {
 function iniciarMapa() {
   if (state.mapaIniciado) return;
   state.mapaIniciado = true;
-  const mapa = L.map('mapa-container', {zoomControl:true}).setView([8.0, -66.0], 6);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // Centrado en La Guaira (epicentro)
+  const mapa = L.map('mapa-container', {zoomControl:true}).setView([10.60, -66.93], 11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '©CartoDB ©OpenStreetMap',
     subdomains: 'abcd', maxZoom: 19
   }).addTo(mapa);
   state.mapa = mapa;
   state.markersLayer = L.layerGroup().addTo(mapa);
+  state.heatLayer = L.heatLayer([], {radius: 25, blur: 15, maxZoom: 14}).addTo(mapa);
   cargarPuntosMapa();
 }
 
@@ -1139,15 +1202,27 @@ async function cargarPuntosMapa() {
     puntos = getDemoPuntosMapa();
   }
   state.markersLayer?.clearLayers();
+  
+  const heatPoints = [];
+  
   puntos.forEach(p => {
     if (!p.lat || !p.lng) return;
+    
+    // Añadir al mapa de calor (intensidad fija o basada en estado)
+    const intensity = p.estado === 'localizado' ? 0.2 : 0.8;
+    heatPoints.push([p.lat, p.lng, intensity]);
+
     const color = p.estado === 'localizado' ? '#22C55E' : '#CF142B';
     const marker = L.circleMarker([p.lat, p.lng], {
-      color, fillColor: color, fillOpacity:.8, radius:8, weight:2
+      color, fillColor: color, fillOpacity:.8, radius:6, weight:1
     });
     marker.bindPopup(`<b>${p.nombre}</b><br>${p.ultima_ubicacion || ''}`);
     state.markersLayer?.addLayer(marker);
   });
+  
+  if (state.heatLayer) {
+    state.heatLayer.setLatLngs(heatPoints);
+  }
 }
 
 function filtrarMapa(filtro, el) {
