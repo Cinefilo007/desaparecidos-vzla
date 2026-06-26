@@ -103,12 +103,6 @@ Para evitar inconsistencias en el frontend, se establece el siguiente sistema de
   - Reescrito el arranque del bot de Telegram en `bot/main.py` de forma completamente asíncrona dentro del mismo loop de eventos principal (`asyncio.run(main())`), solucionando permanentemente la excepción `RuntimeError: Event loop is closed` de SQLAlchemy/asyncpg al interactuar con Postgres.
 - **2026-06-25 (Corrección de URL de la Mini App)**: Sanitización de protocolo para botones WebApp.
   - Agregado el validador `validate_miniapp_url` en `config.py` para forzar e inyectar el protocolo seguro `https://` en la URL de la Mini App si el usuario la configura sin protocolo en Railway, evitando la caída `BadRequest: Keyboard button web app url is invalid`.
-
-
-
-
-
-
-
-
-
+- **2026-06-25 (Corrección del Método de Envío del Bot)**: Solución de AttributeError al registrar personas.
+  - Modificado `bot/handlers/registro.py` para autodetectar de forma segura si la interacción proviene de un botón (`callback_query`) o de un mensaje de texto.
+  - Implementado un fallback asíncrono robusto utilizando `context.bot.send_message` si tanto `message` como `callback_query` son nulos, previniendo caídas imprevistas (`AttributeError`) al finalizar y registrar el flujo de una persona desaparecida.

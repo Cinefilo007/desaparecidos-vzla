@@ -223,8 +223,17 @@ async def _registrar_y_finalizar(
 ) -> int:
     datos: DatosExtraidos = ctx.user_data.get("datos")
     chat_id = ctx.user_data.get("chat_id", "")
-    send = (update.callback_query.message.reply_text if desde_query
-            else update.message.reply_text)
+    
+    # Determinar método de envío robusto (evita caídas si update.message o update.callback_query son None)
+    if update.callback_query and update.callback_query.message:
+        send = update.callback_query.message.reply_text
+    elif update.message:
+        send = update.message.reply_text
+    else:
+        chat_id_val = update.effective_chat.id if update.effective_chat else chat_id
+        async def send_fallback(text, **kwargs):
+            return await ctx.bot.send_message(chat_id=chat_id_val, text=text, **kwargs)
+        send = send_fallback
 
     if not datos or not datos.nombre:
         await send("⚠️ No hay suficientes datos para registrar. Usa /registrar para comenzar de nuevo.")
