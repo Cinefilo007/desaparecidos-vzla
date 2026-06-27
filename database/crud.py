@@ -10,7 +10,7 @@ import hashlib
 from loguru import logger
 
 from config import settings
-from database.models import Base, Persona, Avistamiento, Alerta, Voluntario, EstadoPersona, SuscripcionAlerta, FuenteScraping, IngresoHospital
+from database.models import Base, Persona, Avistamiento, Alerta, Voluntario, EstadoPersona, SuscripcionAlerta, FuenteScraping, IngresoHospital, ScrapingStat
 
 # ── Motor y sesión ─────────────────────────────────────────────────────
 
