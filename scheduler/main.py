@@ -159,7 +159,8 @@ class PlanificadorAdaptativo:
             fuentes = await listar_fuentes_scraping()
             canales = [f.url for f in fuentes if f.tipo == "telegram_channel"]
             for canal in canales:
-                await self.encolar("scrape_telegram", {"canal": canal}, prioridad=2)
+                c_clean = canal.replace("https://t.me/s/", "").replace("https://t.me/", "")
+                await self.encolar("scrape_telegram", {"canal": f"https://t.me/s/{c_clean}"}, prioridad=2)
             logger.info(f"[telegram] {len(canales)} canales dinámicos encolados")
         except Exception as e:
             logger.error(f"[telegram] Error encolando canales dinámicos: {e}")

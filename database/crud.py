@@ -99,7 +99,7 @@ async def listar_personas(
     offset: int = 0,
 ) -> List[Persona]:
     async with db_session() as s:
-        q = select(Persona)
+        q = select(Persona).options(selectinload(Persona.avistamientos))
         filtros = []
         if estado:
             filtros.append(Persona.estado == estado)

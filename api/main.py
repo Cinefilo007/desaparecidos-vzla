@@ -83,7 +83,10 @@ async def root():
 
 @app.get("/api/stats")
 async def get_stats():
-    return await get_estadisticas()
+    from database.crud import get_scraping_stats
+    stats_basicos = await get_estadisticas()
+    stats_scraper = await get_scraping_stats()
+    return {**stats_basicos, **stats_scraper}
 
 @app.get("/api/logs")
 async def get_logs(lines: int = 50):
@@ -397,11 +400,22 @@ async def registrar_ingreso(body: dict):
 async def forzar_scraper():
     import redis.asyncio as aioredis
     import json
+    from database.crud import listar_fuentes_scraping
     try:
         redis_conn = await aioredis.from_url(settings.redis_url)
-        # Lanzamos tareas de scraping
+        # Búsqueda Agéntica (Busca personas directamente en la web)
         await redis_conn.lpush("queue:p2", json.dumps({"tipo": "ejecutar_scraper_agentico", "id": str(uuid.uuid4())}))
-        await redis_conn.lpush("queue:p2", json.dumps({"tipo": "scrape_telegram", "datos": {"canal": "https://t.me/s/ejemplo_noticias_vzla"}, "id": str(uuid.uuid4())}))
+        
+        # Obtener todas las fuentes dinámicas del usuario y encolarlas
+        fuentes = await listar_fuentes_scraping()
+        for f in fuentes:
+            if f.tipo == "telegram_channel":
+                # Si el usuario ya puso https://t.me/s/, lo limpiamos para no duplicar
+                canal = f.url.replace("https://t.me/s/", "").replace("https://t.me/", "")
+                await redis_conn.lpush("queue:p2", json.dumps({"tipo": "scrape_telegram", "datos": {"canal": f"https://t.me/s/{canal}"}, "id": str(uuid.uuid4())}))
+            elif f.tipo in ("web", "rss"):
+                await redis_conn.lpush("queue:p2", json.dumps({"tipo": "scrape_web", "datos": {"url": f.url}, "id": str(uuid.uuid4())}))
+
         await redis_conn.close()
         return {"ok": True, "msg": "Scraping encolado correctamente"}
     except Exception as e:

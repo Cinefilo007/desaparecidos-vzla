@@ -309,7 +309,7 @@ class ProcesadorImagenes:
     def recortar_rostro(self, ruta_imagen: str, caja: list = None) -> Optional[str]:
         """
         Recorta el rostro principal de una imagen usando OpenCV Haar Cascades.
-        Ignora el parámetro 'caja' de Gemini ya que suele ser inexacto.
+        Si falla, usa el parámetro 'caja' de Gemini como fallback.
         """
         try:
             # Cargar la imagen con OpenCV
@@ -319,6 +319,7 @@ class ProcesadorImagenes:
                 return None
             
             gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+            img_h, img_w = img_cv.shape[:2]
             
             # Cargar el clasificador pre-entrenado frontal de OpenCV
             face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -332,15 +333,22 @@ class ProcesadorImagenes:
             )
             
             if len(faces) == 0:
-                logger.warning(f"OpenCV no detectó rostros en {ruta_imagen}")
-                return None
-            
-            # Asumir que el rostro principal es el más grande
-            faces = sorted(faces, key=lambda x: x[2]*x[3], reverse=True)
-            x, y, w, h = faces[0]
+                logger.warning(f"OpenCV no detectó rostros en {ruta_imagen}, intentando con caja de Gemini")
+                if caja and len(caja) == 4:
+                    # Gemini retorna [ymin, xmin, ymax, xmax] en escala 0-1000
+                    ymin, xmin, ymax, xmax = caja
+                    y = int((ymin / 1000.0) * img_h)
+                    x = int((xmin / 1000.0) * img_w)
+                    h = int(((ymax - ymin) / 1000.0) * img_h)
+                    w = int(((xmax - xmin) / 1000.0) * img_w)
+                else:
+                    return None
+            else:
+                # Asumir que el rostro principal es el más grande
+                faces = sorted(faces, key=lambda f: f[2]*f[3], reverse=True)
+                x, y, w, h = faces[0]
             
             # Añadir padding (30%)
-            img_h, img_w = img_cv.shape[:2]
             pad_x = int(w * 0.3)
             pad_y = int(h * 0.3)
             
