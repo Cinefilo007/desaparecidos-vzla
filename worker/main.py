@@ -106,7 +106,7 @@ class Worker:
     # ── Handlers Nuevos ────────────────────────────────────────────────
     
     async def handler_scraper_agentico(self):
-        from database.crud import listar_personas
+        from database.crud import listar_personas, update_scraping_stats
         from database.models import EstadoPersona
         from ai.scraper_agent import scraper_agent
         import redis.asyncio as aioredis
@@ -126,15 +126,12 @@ class Worker:
             tot_busquedas += stats.get("busquedas", 0)
             tot_similitudes += stats.get("similitudes", 0)
             
-        # Para las estadísticas globales, actualizamos Redis (asumiendo que las guarda ahí)
+        # Actualizamos las estadísticas globales en la base de datos para que se reflejen en los KPIs
         try:
-            r = await aioredis.from_url(settings.redis_url)
-            await r.incrby("stats:sitios", tot_sitios)
-            await r.incrby("stats:busquedas", tot_busquedas)
-            await r.incrby("stats:matches", tot_similitudes)
-            await r.close()
+            await update_scraping_stats(sitios=tot_sitios, busquedas=tot_busquedas, similitudes=tot_similitudes)
+            logger.info(f"[Worker] Stats globales del scraper guardados: Sitios={tot_sitios}, Búsquedas={tot_busquedas}, Matches={tot_similitudes}")
         except Exception as e:
-            logger.error(f"[Worker] Error actualizando stats en Redis: {e}")
+            logger.error(f"[Worker] Error actualizando stats en Base de Datos: {e}")
 
     async def handler_sincronizar_gdrive(self):
         from database.crud import crear_persona, buscar_posible_duplicado
@@ -170,6 +167,7 @@ class Worker:
         if not url:
             return
         logger.info(f"[Scraper] Descargando web: {url}")
+        from database.crud import update_scraping_stats
         try:
             response = await self.client.get(url)
             if response.status_code != 200:
@@ -177,6 +175,7 @@ class Worker:
                 return
 
             texto_limpio = self._limpiar_html(response.text)
+            await update_scraping_stats(sitios=1, busquedas=1)
             await self._contrastar_texto_con_desaparecidos(texto_limpio, url, "web")
         except Exception as e:
             logger.error(f"[Scraper] Error en scrape_web de {url}: {e}")
@@ -188,6 +187,7 @@ class Worker:
         canal_name = canal.replace("@", "").strip()
         url = f"https://t.me/s/{canal_name}"
         logger.info(f"[Scraper] Descargando feed público de Telegram: {url}")
+        from database.crud import update_scraping_stats
         try:
             response = await self.client.get(url)
             if response.status_code != 200:
@@ -200,6 +200,8 @@ class Worker:
             posts = []
             for msg in soup.find_all('div', class_='tgme_widget_message_text'):
                 posts.append(msg.get_text(separator=' ', strip=True))
+
+            await update_scraping_stats(sitios=1, busquedas=1)
 
             if not posts:
                 logger.warning(f"[Scraper] No se encontraron publicaciones públicas en el feed de {canal}")
@@ -344,6 +346,8 @@ class Worker:
     # ── Registro de Avistamientos y Envío de Alertas ───────────────────
 
     async def _registrar_avistamiento_y_alertar(self, persona_id: int, coincidencia: Dict[str, Any], url_fuente: str, plataforma: str):
+        from database.crud import crear_avistamiento, obtener_suscritos, update_scraping_stats
+        
         # 1. Registrar avistamiento en la BD
         datos_avistamiento = {
             "persona_id":   persona_id,
@@ -360,6 +364,12 @@ class Worker:
         
         avistamiento = await crear_avistamiento(datos_avistamiento)
         logger.info(f"[Worker] Avistamiento #{avistamiento.id} guardado para Persona #{persona_id}")
+        
+        # Incrementar KPI de similitudes (matches)
+        try:
+            await update_scraping_stats(similitudes=1)
+        except Exception as e:
+            logger.error(f"[Worker] Error actualizando matches de KPI: {e}")
 
         # 2. Buscar personas a notificar (suscritos y creador original)
         recipientes = await obtener_suscritos(persona_id)
